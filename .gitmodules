@@ -1,0 +1,9 @@
+[submodule "cms_pix_28_test_firmware"]
+	path = cms_pix_28_test_firmware
+	url = git@github.com:Fermilab-Microelectronics/cms_pix_28_test_firmware.git
+[submodule "peary"]
+	path = peary
+	url = https://gitlab.cern.ch/Caribou/peary.git
+[submodule "spacely"]
+	path = spacely
+	url = git@github.com:SpacelyProject/spacely.git
