@@ -1,6 +1,6 @@
 # Phase 1
 
-This phase of construction is to develop the testing infastructure prior to connecting the chip.
+This phase of construction is to develop the testing infastructure prior to connecting the device under test (DUT) with chip bonded to it.
 
 # Prerequisites
 - a linux workstation
@@ -58,12 +58,12 @@ scp CMSPIX28_DAQ/peary petalinux@X:XX/XX
 scp CMSPIX28_DAQ/cms_pix_28_test_firmware/device/CMSPIX28 petalinux@X:XX/device
 scp cmake petalinux@X
 ssh petalinux@X
-export PATH=PATH:cmake
+export PATH=/home/petalinux/cmake-3.29.0-rc4-linux-aarch64/bin/:$PATH
 cd peary
 mkdir build
 cd build
-CMAKE ...
-make -j4
+cmake -DBUILD_CMSPIX28=ON -DINTERFACE_IIO=OFF -DINTERFACE_MEDIA=OFF -DINTERFACE_I2C=OFF ..
+sudo make -j4
 sudo make install
 cd ../
 sudo ./bin/pearyd
