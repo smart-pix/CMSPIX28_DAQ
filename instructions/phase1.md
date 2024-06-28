@@ -92,3 +92,7 @@ You should see peary recognize the device
 ## Test 3 with scope
 - set scope to single event mode
 - run test to produce pulses on the scope
+
+## Check output voltages from mezzanine
+- connect level shifter and you should see 0.9 V
+- you are now ready to connect the DUT to the level shifter
