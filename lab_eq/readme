@@ -2,3 +2,4 @@ in case of a shutdown:
 1. ksu root
 2. chmod a+rw /dev/usbtmc0
 3. ./ContBKPG.py < BK4065_INIT.txt
+4. ./ContRigolPS.py < RIGOL_INIT.txt
