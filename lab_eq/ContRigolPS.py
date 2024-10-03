@@ -10,26 +10,27 @@ ser = serial.Serial(
 
 ser.close()
 ser.open()
-
-print('Enter your commands below.\r\nInsert "exit" to leave the application.')
-
-while 1 :
-    # get keyboard input
-    #input = raw_input(">> ")
-        # Python 3 users
-    instr = input(">> ")
-    if instr == 'exit':
-        ser.close()
-        exit()
-    else:
-        # send the character to the device
-        input2 = instr + '\n'
-        ser.write(input2.encode())
-        out = b' '
-        # let's wait one second before reading output (let's give device time to answer)
-        time.sleep(1)
-        while ser.inWaiting() > 0:
-            out += ser.read(1)
-            
-        if out != '':
-            print(">>" + out.decode())
+input = [
+"*IDN?",
+"*IDN?",
+"*IDN?"
+#"MEAS:ALL?"
+#":VOLT 0.9",
+#":CURR 0.03",
+#":CURR:PROT 0.04",
+#":OUTP:STAT CH1,ON",
+#"MEAS:ALL?",
+]
+nlist=len(input)
+for i in range(nlist):
+    ser.write(input[i].encode())
+    out = b' '
+    time.sleep(1)
+    print(input[i])
+    out += ser.read(1)
+    print(out)
+    print(out.decode())
+"""     out += ser.read(1)   
+    if(input[i][-1]=="?"):
+        print(">>" + out.decode())
+ser.close() """
