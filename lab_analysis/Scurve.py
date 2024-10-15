@@ -54,10 +54,15 @@ if __name__ == "__main__":
     data = data.reshape(-1, 256,3)
 
     # Plot each pixel and bit individually
+    means = []
+    stds = []
 
     # plot per bit
     for iP in range(data.shape[1]):
         
+        means.append([])
+        stds.append([])
+
         # plot per pixel
         for iB in range(data.shape[2]):
 
@@ -82,6 +87,10 @@ if __name__ == "__main__":
             except:
                 print("fit failed")
                 mean_, std_ = -1, -1
+            
+            # append mean and std
+            means[-1].append(mean_)
+            stds[-1].append(std_)
 
             # make figure
             fig, ax = plt.subplots(figsize=(6,6))
@@ -121,7 +130,13 @@ if __name__ == "__main__":
             print(f"Saving file to {outFileName}")
             plt.savefig(outFileName, bbox_inches='tight')
             
-    
+
+    # save mean and std
+    means = np.array(means)
+    stds = np.array(stds)
+    outMeanStdName = os.path.join(outDir, f"s_fit_values.npz")
+    print(f"Saving fitted mean and std values to {outMeanStdName} with shapes mean {means.shape}, std {std.shape}")
+    np.savez(outMeanStdName, **{"mean": means, "std" : stds})
 
     # plot all pixels together per bit
     for iB in range(data.shape[2]):
