@@ -1,4 +1,5 @@
 import numpy as np
+import re
 from scipy.optimize import curve_fit
 import matplotlib.pyplot as plt
 from scipy.stats import norm
@@ -16,7 +17,8 @@ if __name__ == "__main__":
 
     # pick up all of the data files
     inFileList = sorted(glob.glob(args.inFilePath))
-
+    vMin, vMax, vStep, nSample = map(float, re.search(r?vMin([0-9.]+)_vMax([0-9.]+)_vStep([0-9.]+)_nSample([0-9.]+)?, inFileList[0]).groups());
+   
     # outdir
     outDir = os.path.join(os.path.dirname(args.inFilePath),f"plots")
     os.makedirs(outDir, exist_ok=True)
@@ -45,11 +47,11 @@ if __name__ == "__main__":
     data = np.stack(data, 0)
     data = data.reshape(-1, 256,3)
 
-    # plot per pixel
-    for iP in range(data.shape[1]):
+    # plot per bit
+    for iB in range(data.shape[2]):
         
-        # plot per bit
-        for iB in range(data.shape[2]):
+        # plot per pixel
+        for iP in range(data.shape[1]):
 
             ydata = data[:, iP, iB]
             
@@ -92,7 +94,7 @@ if __name__ == "__main__":
             ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
             # Add minor ticks
             # ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-            ax.xaxis.set_minor_locator(ticker.MultipleLocator(1.0 / 10)) # 10 minor ticks per major tick
+            ax.xaxis.set_minor_locator(ticker.MultipleLocator()) # 10 minor ticks per major tick
             ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
 
             # customize
