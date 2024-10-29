@@ -45,9 +45,6 @@ if __name__ == "__main__":
     #Electron Charge
     Qe = 1.602e-19
 
-    # Store 50% points for each curve
-    # nelectron_asic_50perc = []
-
     # loop over
     for pixel, files in tqdm.tqdm(Global.items()):
 
@@ -81,15 +78,6 @@ if __name__ == "__main__":
         
         # update global
         Global[pixel] = data
-
-        # # pick up 50% values
-        # for i in data:
-        #     idx_closest = np.argmin(np.abs(i - 0.5))
-        #     nelectron_asic_50perc.append(nelectron_asics[idx_closest])
-
-    # combine
-    # nelectron_asic_50perc = np.array(nelectron_asic_50perc)
-    # print(nelectron_asic_50perc.shape)
     
     # Store 50% points for each curve
     nelectron_asic_50perc = []
