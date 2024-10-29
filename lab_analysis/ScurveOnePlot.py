@@ -150,7 +150,7 @@ if __name__ == "__main__":
     # plot the gaussian
     fig, ax = plt.subplots(figsize=(6,6))
     # plot data
-    bins = np.linspace(0,1400,141)
+    bins = np.linspace(0,1400,29)
     ax.hist(nelectron_asic_50perc, bins=bins, histtype="step")
 
     # plot fitten gaussian
