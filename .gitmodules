@@ -1,6 +1,6 @@
 [submodule "cms_pix_28_test_firmware"]
 	path = cms_pix_28_test_firmware
-	url = git@github.com:Fermilab-Microelectronics/cms_pix_28_test_firmware.git
+	url = git@github.com:smart-pix/cms_pix_28_test_firmware.git
 [submodule "peary"]
 	path = peary
 	url = https://gitlab.cern.ch/Caribou/peary.git
