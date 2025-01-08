@@ -45,7 +45,7 @@ vivado &
 ```
 - turn on FPGA without mezzanine connected
 - verify LEDs on FPGA then connect the mezzanine
-- use breadboard pins to connect XX and XX on mezzanine
+- use breadboard pins to connect TD0 and TD1 on mezzanine
 - Open project and select the .xdc file
 - Let vivado load
 - On the left, click "Generate Bitstream" ...
