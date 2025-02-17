@@ -54,8 +54,8 @@ vivado &
 
 4. setup peary FPGA
 ```
-scp CMSPIX28_DAQ/peary petalinux@X:XX/XX
-scp CMSPIX28_DAQ/cms_pix_28_test_firmware/device/CMSPIX28 petalinux@X:XX/device
+scp -r CMSPIX28_DAQ/peary petalinux@X:XX/XX
+scp -r CMSPIX28_DAQ/cms_pix_28_test_firmware/device/CMSPIX28 petalinux@X:XX/device
 scp cmake petalinux@X
 ssh petalinux@X
 export PATH=/home/petalinux/cmake-3.29.0-rc4-linux-aarch64/bin/:$PATH
