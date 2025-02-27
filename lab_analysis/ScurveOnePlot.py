@@ -19,14 +19,23 @@ def gaussian(x, amplitude, mean, std_dev):
 
 if __name__ == "__main__":
 
+    parser = argparse.ArgumentParser(description='Producing simple histograms.')
+    parser.add_argument('-i', '--inFilePath', required=True, help='Path to input files')
+    parser.add_argument("--PlotOnlyCombined", action="store_true", help="Only plot the combined s-curves")
+
+    args = parser.parse_args()
+
+
 
     # list dir
-    l = list(Path("/asic/projects/C/CMS_PIX_28/benjamin/testing/workarea/CMSPIX28_DAQ/spacely/PySpacely/data/2024-10-25_MATRIX/").glob("*config1*"))
+    l = list(Path(args.inFilePath).glob("*"))
     Global = {}
-    for iL, i in enumerate(l):
+
+    for nPix, i in enumerate(l):
         # if iL > 2: break
-        pixel, config, scanAddress, vMin, vMax, vStep, nSample = map(float, re.search(r'pixel([0-9.]+)_config([0-9.]+)_scanAddress([0-9.]+)_vMin([0-9.]+)_vMax([0-9.]+)_vStep([0-9.]+)_nSample([0-9.]+)', i.stem).groups())
-        pixel = int(pixel)
+        nPix, vMin, vMax, vStep, nSample, vdda, VTH = map(float, re.search(r'nPix([0-9]+)_vMin([0-9.]+)_vMax([0-9.]+)_vStep([0-9.]+)_nSample([0-9.]+)_vdda([0-9.]+)_VTH([0-9.]+)', i.stem).groups())
+        # vMin, vMax, vStep, nSample = map(float, re.search(r'vMin([0-9.]+)_vMax([0-9.]+)_vStep([0-9.]+)_nSample([0-9.]+)', i.stem).groups())
+        pixel = int(nPix)
         files = list(i.glob("*.npz"))
         if len(files) < 81:
             print(pixel, len(files))
@@ -37,7 +46,11 @@ if __name__ == "__main__":
     vMin *= 1000
     vMax *= 1000
     vStep *= 1000
-    
+
+    # outdir
+    outDir = os.path.join(os.path.dirname(args.inFilePath),f"plots")
+    os.makedirs(outDir, exist_ok=True)
+
     # Pixel programming gain - value 1-2-3
     Pgain = 1
     #input cap
@@ -85,7 +98,7 @@ if __name__ == "__main__":
     # filter threshold to analyse the data
     sCutHi = 0.8
     sCutLo = 0.2
-    stds_threshold = 100
+    stds_threshold = 200
 
     # plot
     fig, ax = plt.subplots(figsize=(6,6))
@@ -132,7 +145,7 @@ if __name__ == "__main__":
     ax.set_xlabel("Number of Electrons", fontsize=18, labelpad=10)
     ax.set_ylabel("Fraction of One's", fontsize=18, labelpad=10)
     # set limits
-    ax.set_xlim(0, 1400)
+    ax.set_xlim(0, 3000)
     ax.set_ylim(-0.05, 1.05)
     # style ticks
     ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
@@ -142,7 +155,7 @@ if __name__ == "__main__":
     ax.tick_params(axis='both', which='major', labelsize=14, length=5, width=1, direction="in")
     ax.tick_params(axis='both', which='minor', labelsize=10, length=3, width=1, direction="in")
     # save to file
-    outFileName = "FullSCurve.pdf"
+    outFileName = os.path.join(outDir,"FullSCurve.pdf")
     print(f"Saving file to {outFileName}")
     plt.savefig(outFileName, bbox_inches='tight')
     plt.close()
@@ -180,5 +193,8 @@ if __name__ == "__main__":
     ax.text(0.9, 0.90, f'Amplitude = {amplitude:.2f}''\n'fr'$\mu$ = {mean:.2f}''\n'fr'$\sigma$ = {std_dev:.2f}', transform=ax.transAxes, fontsize=12, color="black", ha='right', va='center')
 
     # save fig
-    plt.savefig("FullSCurve50perc.pdf", bbox_inches='tight')
+    
+    outFileName = os.path.join(outDir,"FullSCurve50perc.pdf")
+    print(f"Saving file to {outFileName}")
+    plt.savefig(outFileName, bbox_inches='tight')
     plt.close()

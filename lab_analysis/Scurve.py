@@ -80,10 +80,12 @@ if __name__ == "__main__":
     vStep *= 1000
 
     # filter threshold to analyse the data 
-    ydataCutHi =0.8
-    ydataCutLo =0.2
-    stds_threshold =10
-
+    # ydataCutHi =0.8
+    # ydataCutLo =0.2
+    # stds_threshold =10
+    ydataCutHi =0.3
+    ydataCutLo =0.5
+    stds_threshold =10000
     # outdir
     outDir = os.path.join(os.path.dirname(args.inFilePath),f"plots")
     os.makedirs(outDir, exist_ok=True)
@@ -316,6 +318,7 @@ if __name__ == "__main__":
         print(f"Saving file to {outFileName}")
         plt.savefig(outFileName, bbox_inches='tight')
 
+l
 
 
 
