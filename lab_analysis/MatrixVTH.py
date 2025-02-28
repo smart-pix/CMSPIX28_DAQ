@@ -4,13 +4,13 @@ import os
 import matplotlib.pyplot as plt 
 import matplotlib.ticker as ticker
 import mplhep as hep
+import argparse
 
-# plt.style.use(hep.style.ROOT)
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
 from Analyze import inspectPath
-import argparse
+
 
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
@@ -29,27 +29,18 @@ pltConfig["nelectron_asic_50perc"] = {
     "ylabel": r"S-Curve Half Max [e$^{-}$]", 
     "idx" : 1,
     "fit" : "linear"
-    # "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3400, 71]], # bit 0, bit 1, bit 2
-    # "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
-    # "ylim": [0, 30]
 }
 pltConfig["scurve_mean"] = {
     "xlabel": r"V$_{\mathrm{TH}}$ [mV]", 
     "ylabel": r"S-Curve $\mu$ [e$^{-}$]",
     "idx" : 2,
     "fit" : "linear"
-    # "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3400, 71]], # bit 0, bit 1, bit 2
-    # "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
-    # "ylim": [0, 30]
 }
 pltConfig["scurve_std"] = {
     "xlabel": r"V$_{\mathrm{TH}}$ [mV]",
     "ylabel": r"S-Curve $\sigma$ [e$^{-}$]",
     "idx" : 3,
     "fit" : None
-    # "binConfigs": [[0, 300, 31], [0, 300, 31], [0, 300, 31]], # bit 0, bit 1, bit 2
-    # "p0s": None, # bit 0, bit 1, bit 2
-    # "ylim": [0, 60]
 }
 
 # Perform linear fit
