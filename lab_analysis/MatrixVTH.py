@@ -15,37 +15,65 @@ from Analyze import inspectPath
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFile', type=str, required=True, help='Input file path')
+parser.add_argument("-o", '--outDir', type=str, default="./plots", help='Input file path')
 args = parser.parse_args()
 
-inFile = args.inFile
-x = np.load(inFile)
-info = inspectPath(os.path.dirname(inFile))
-outDir = "./plots" # os.path.dirname(inFile)
+# Load data and info
+x = np.load(args.inFile)
+info = inspectPath(os.path.dirname(args.inFile))
+
+# get output directory
+outDir = args.outDir # "./plots" # os.path.dirname(inFile)
 
 # plot config
 pltConfig = {}
 pltConfig["nelectron_asic_50perc"] = {
-    "xlabel": r"V$_{\mathrm{TH}}$ [mV]", 
+    "xlabel": r"V$_{\mathrm{TH}}$ Per Bit [mV]", 
     "ylabel": r"S-Curve Half Max [e$^{-}$]", 
     "idx" : 1,
-    "fit" : "linear"
+    "fit" : "linear",
+    "vthPerBit" : True,
+    "legLoc" : "lower right"
 }
 pltConfig["scurve_mean"] = {
-    "xlabel": r"V$_{\mathrm{TH}}$ [mV]", 
+    "xlabel": r"V$_{\mathrm{TH}}$ Per Bit [mV]", 
     "ylabel": r"S-Curve $\mu$ [e$^{-}$]",
     "idx" : 2,
-    "fit" : "linear"
+    "fit" : "linear",
+    "vthPerBit" : True,
+    "legLoc" : "lower right"
 }
 pltConfig["scurve_std"] = {
-    "xlabel": r"V$_{\mathrm{TH}}$ [mV]",
+    "xlabel": r"V$_{\mathrm{TH}}$ Per Bit [mV]",
     "ylabel": r"S-Curve $\sigma$ [e$^{-}$]",
     "idx" : 3,
-    "fit" : None
+    "fit" : None,
+    "vthPerBit" : True,
+    "legLoc" : "upper right"
 }
 
 # Perform linear fit
 def linear_func(x, a, b):
     return a * x + b
+
+# VTH_{0-2} per bit from VTH
+def vth_to_vthPerBit(vth, iB):
+    scale = [50, 100, 200][iB]
+    return vth * scale / 1250
+
+def angleFromSlope(m, ax=None):
+    if ax is None:
+        aspect_ratio = 1
+    else:
+        # Get axis scaling factors
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        # Compute the scale-adjusted slope
+        aspect_ratio = (ylim[1] - ylim[0]) / (xlim[1] - xlim[0])
+    adjusted_slope = m / aspect_ratio
+    # Compute the angle in degrees
+    angle = np.arctan(adjusted_slope) * (180 / np.pi)
+    return angle
 
 # make plots
 for name, config in pltConfig.items():
@@ -57,13 +85,17 @@ for name, config in pltConfig.items():
 
     # set y limit
     maxValue = np.max(x[:,:,config["idx"]])
-    ylimMax = 1.25 * maxValue
+    ylimMax = 1.35 * maxValue
     ax.set_ylim(0, ylimMax)
 
     # plot
     color = ["blue", "red", "orange"]
     for iB in range(3):
+        # get vth per bit
         x_ = x[:,iB][:,0]
+        if config["vthPerBit"]:
+            x_ = vth_to_vthPerBit(x_, iB)
+        # get y values
         y_ = x[:,iB][:,config["idx"]]
         mask = y_ > 0
         ax.plot(x_[mask], y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
@@ -72,25 +104,23 @@ for name, config in pltConfig.items():
         if config["fit"] == "linear":
             popt, pcov = curve_fit(linear_func, x_[mask], y_[mask])
             a, b = popt
-            fit_label = f'y = {a:.2f}x + {b:.2f}'
+            fit_label = f'y = {a:.2f}x {"-" if b < 0 else "+"} {abs(b):.2f}'
             ax.plot(x_[mask], linear_func(x_[mask], *popt), linestyle='--', color = color[iB], alpha=0.5)
             # Calculate the angle of the line for rotation
-            # Get axis scaling factors
-            xlim = ax.get_xlim()
-            ylim = ax.get_ylim()
-            # Compute the scale-adjusted slope
-            aspect_ratio = (ylim[1] - ylim[0]) / (xlim[1] - xlim[0])
-            adjusted_slope = a / aspect_ratio
-            # Compute the angle in degrees
-            angle = np.arctan(adjusted_slope) * (180 / np.pi)
-            # plot
-            x_middle = x_[mask][0] + (x_[mask][-1] - x_[mask][0]) / 4
-            y_middle = linear_func(x_middle, *popt)
-            y_middle += 0.1*y_middle
-            ax.text(x_middle, y_middle, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', rotation=angle, alpha=0.5)
+            if config["vthPerBit"]:
+                x_text = 0.55
+                y_text = 0.05*(iB+1)
+                ax.text(x_text, y_text, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', transform=ax.transAxes, alpha=0.5)
+            else:
+                angle = 0 if config["vthPerBit"] else angleFromSlope(a, ax)
+                x_text = x_[mask][0] + (x_[mask][-1] - x_[mask][0]) / 4
+                y_text = linear_func(x_text, *popt)
+                y_text += 0.1*y_text
+                # print text label
+                ax.text(x_text, y_text, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', rotation=angle, alpha=0.5)
 
     # make legend
-    legend = ax.legend(fontsize=15, loc="upper right")
+    legend = ax.legend(fontsize=15, loc = "upper right") #bbox_to_anchor=(0.03, 0.85), loc='upper left')
     for text in legend.get_texts():
         text.set_fontweight('bold')
 
