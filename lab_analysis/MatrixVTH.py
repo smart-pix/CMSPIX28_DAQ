@@ -104,7 +104,9 @@ for name, config in pltConfig.items():
         if config["fit"] == "linear":
             popt, pcov = curve_fit(linear_func, x_[mask], y_[mask])
             a, b = popt
+            CvG = 1/a*1000000
             fit_label = f'y = {a:.2f}x {"-" if b < 0 else "+"} {abs(b):.2f}'
+            fit_label = f'CvG = {CvG:.2f}uV/e-'
             ax.plot(x_[mask], linear_func(x_[mask], *popt), linestyle='--', color = color[iB], alpha=0.5)
             # Calculate the angle of the line for rotation
             if config["vthPerBit"]:

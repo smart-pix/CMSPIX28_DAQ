@@ -128,6 +128,7 @@ if __name__ == "__main__":
     # outdir
     outDir = os.path.join(os.path.dirname(args.inFilePath),f"plots")
     os.makedirs(outDir, exist_ok=True)
+    os.chmod(outDir, mode=0o777)
 
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
@@ -138,6 +139,7 @@ if __name__ == "__main__":
     confs = []
     for inPath in inPathList:
         confs.append({
+
             "inPath": inPath,
         })
 
