@@ -22,7 +22,7 @@ scurve_mean_perBit = inData["scurve_mean_perBit"]
 scurve_std_perBit = inData["scurve_std_perBit"]
 
 # output directory
-outDir = os.path.dirname(inFile)
+outDir = "./plots" # os.path.dirname(inFile)
 
 # we want to plot matrix bit order vs mean
 # fig, ax = plt.subplots(figsize=(6,6))

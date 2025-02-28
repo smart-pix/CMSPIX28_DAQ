@@ -5,28 +5,39 @@ from scipy.stats import norm
 import os
 import glob
 import argparse
-from pathlib import Path
 import multiprocessing as mp
 
 # Global values
 Pgain = 1 # Pixel programming gain - value 1-2-3
 Cin = 1.85e-15 # input cap
 Qe = 1.602e-19 # electron charged
+VtomV = 1000 # convert V to mV
 
-def analysis(inPath):
-
-    # pick up the configurations
-    nPix, vMin, vMax, vStep, nSample, vdda, VTH = map(float, re.search(r'nPix([0-9]+)_vMin([0-9.]+)_vMax([0-9.]+)_vStep([0-9.]+)_nSample([0-9.]+)_vdda([0-9.]+)_VTH([0-9.]+)', inPath.stem).groups())
-    print(nPix)
-    pixel = int(nPix)
-    files = list(inPath.glob("*.npz"))
-    if len(files) < 81:
-        print(pixel, len(files))
-
+def inspectPath(inPath):
+    # pick up configurations
+    split = inPath.split("/")
+    info = {}
+    # get the date and test type
+    info["date"] = [i for i in split if "2025" in i][0].split("_")[0]
+    info["time"] = [i for i in split if "2025" in i][0].split("_")[1]
+    info["testType"] = [i for i in split if "2025" in i][0].split("_")[2]
+    # now get all the other configurations with number values
+    matches = re.findall(r'([a-zA-Z]+)([0-9.]+)', inPath)
+    for match in matches:
+        info[match[0]] = float(match[1])
     # convert to mV from V
-    vMin *= 1000
-    vMax *= 1000
-    vStep *= 1000
+    info["vMin"] *= VtomV
+    info["vMax"] *= VtomV
+    info["vStep"] *= VtomV
+    return info
+
+def analysis(config):
+
+    # pick up configurations
+    info = inspectPath(config["inPath"])
+
+    # get list of files
+    files = list(glob.glob(os.path.join(config["inPath"], "*.npz")))
 
     # one file per voltage
     v_asics = []
@@ -36,14 +47,14 @@ def analysis(inPath):
     for iF, inFileName in enumerate(files):
 
         v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".npz")[0])
-        v_asic *= 1000 # convert v_asic to mV from V
+        v_asic *= VtomV # convert v_asic to mV from V
 
         # pick up the data
         with np.load(inFileName) as f:
             x = f["data"]
             # only take pixel we want
             x = x.reshape(-1, 256, 3)
-            x = x[:,pixel]
+            x = x[:,int(info["nPix"])]
 
         # compute fraction with 1's
         frac = x.sum(0)/x.shape[0]
@@ -54,7 +65,7 @@ def analysis(inPath):
                         
     # convert
     v_asics = np.array(v_asics)
-    nelectron_asics = v_asics/1000*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
+    nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
     data = np.stack(data, 1)
     
     # filter threshold to analyse the data
@@ -91,7 +102,17 @@ def analysis(inPath):
             fiftyPerc_ = nelectron_asics[idx_closest]
 
         # append
-        temp.append([nPix, fiftyPerc_, mean_, std_])
+        t_ = []
+        if info["testType"] == "MatrixNPix":
+            t_.append(info["nPix"])
+        elif info["testType"] == "MatrixVTH":
+            t_.append(info["VTH"])
+        else:
+            t_.append(-1)
+        # add other entries
+        t_ += [fiftyPerc_, mean_, std_]
+        # append
+        temp.append(t_)
 
     return temp
 
@@ -108,16 +129,30 @@ if __name__ == "__main__":
     outDir = os.path.join(os.path.dirname(args.inFilePath),f"plots")
     os.makedirs(outDir, exist_ok=True)
 
-    # get the list of folders
-    l = sorted(Path(args.inFilePath).glob("nPix[0-9]*"), key=lambda x: int(re.search(r'nPix([0-9]+)', x.stem).group(1)))
+    # handle input
+    inPathList = list(sorted(glob.glob(args.inFilePath)))
+    inPathList = [i for i in inPathList if "plots" not in i]
+    # inPathList = inPathList[:5]
 
-    # create a pool of workers
-    with mp.Pool(processes=args.ncpu) as pool:
-        results = pool.starmap(analysis, [(inPath,) for inPath in l if "plots" not in str(inPath)])
+    # create configurations
+    confs = []
+    for inPath in inPathList:
+        confs.append({
+            "inPath": inPath,
+        })
 
+    # launch jobs
+    if args.ncpu == 1:
+        results = []
+        for conf in confs:
+            results.append(analysis(conf))
+    else:
+        results = mp.Pool(args.ncpu).map(analysis, confs)
+
+    # process
     results = np.array(results)
-    print(results[:5])
-    output_file = os.path.join(outDir, "scurve_data_TEMP.npy")
+    print(results[:,:,0].flatten())
+    output_file = os.path.join(outDir, "scurve_data.npy")
     print(f"Data saved to {output_file}")
     np.save(output_file, results)
 
