@@ -10,11 +10,16 @@ hep.style.use("ATLAS")
 
 from SmartPixStyle import *
 from Analyze import inspectPath
+import argparse
 
-inFile = "/mnt/local/CMSPIX28/Scurve/data/ChipVersion1_ChipID9_SuperPix2/2025.02.27_17.45.00_MatrixVTH_vMin0.001_vMax0.400_vStep0.00100_nSample1000.000_vdda0.900_BXCLK10.00_nPix0/plots/scurve_data.npy"
+# Argument parser
+parser = argparse.ArgumentParser(description='Process some integers.')
+parser.add_argument("-i", '--inFile', type=str, required=True, help='Input file path')
+args = parser.parse_args()
+
+inFile = args.inFile
 x = np.load(inFile)
 info = inspectPath(os.path.dirname(inFile))
-print(info)
 outDir = "./plots" # os.path.dirname(inFile)
 
 # plot config
