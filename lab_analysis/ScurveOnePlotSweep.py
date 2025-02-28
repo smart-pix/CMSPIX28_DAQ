@@ -190,9 +190,9 @@ if __name__ == "__main__":
 
     # initial gaussian configurations per bit
     p0s = [
-        [50, 400, 100], # bit 0 (amplitude, mean, std_dev)
-        [50, 1200, 100], # bit 1
-        [50, 2800, 100] # bit 2
+        [50, VTH/1250*50*Cin/Qe, 100], # bit 0 (amplitude, mean, std_dev)
+        [50, VTH/1250*1000*Cin/Qe, 100], # bit 1
+        [50, VTH/1250*200*Cin/Qe, 100] # bit 2
     ]
     # plot range per plots
     binConfigs = [
