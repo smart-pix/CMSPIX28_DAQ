@@ -4,22 +4,35 @@ import os
 import matplotlib.pyplot as plt 
 import matplotlib.ticker as ticker
 import mplhep as hep
+import argparse
 
 # plt.style.use(hep.style.ROOT)
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
+from Analyze import inspectPath
 
 # Gaussian function to fit
 def gaussian(x, amplitude, mean, std_dev):
     return amplitude * np.exp(-((x - mean)**2) / (2 * std_dev**2))
 
+# Argument parser
+parser = argparse.ArgumentParser(description='Process some integers.')
+parser.add_argument("-i", '--inFile', type=str, required=True, help='Input file path')
+parser.add_argument("-o", '--outDir', type=str, default="./plots", help='Input file path')
+args = parser.parse_args()
+
 # pick up the data
-inFile = "/mnt/local/CMSPIX28/Scurve/data/2025.02.20_SuperPixV2/plots/scurve_data.npz"
-inData = np.load(inFile, allow_pickle=True)
-nelectron_asic_50perc_perBit = inData["nelectron_asic_50perc_perBit"]
-scurve_mean_perBit = inData["scurve_mean_perBit"]
-scurve_std_perBit = inData["scurve_std_perBit"]
+# inFile = "/mnt/local/CMSPIX28/Scurve/data/2025.02.20_SuperPixV2/plots/scurve_data.npz"
+# inData = np.load(args.inFile)
+# nelectron_asic_50perc_perBit = inData[:,:,1] # inData["nelectron_asic_50perc_perBit"]
+# scurve_mean_perBit = inData[:,:,2] # inData["scurve_mean_perBit"]
+# scurve_std_perBit = inData[:,:,3] # inData["scurve_std_perBit"]
+
+# input file
+x = np.load(args.inFile)
+print(x.shape)
+info = inspectPath(os.path.dirname(args.inFile))
 
 # output directory
 outDir = "./plots" # os.path.dirname(inFile)
@@ -38,23 +51,26 @@ pltConfig = {}
 pltConfig["nelectron_asic_50perc_perBit"] = {
     "xlabel": r"S-Curve Half Max [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3400, 71]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3600, 81]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
-    "ylim": [0, 30]
+    "ylim": [0, 30],
+    "idx" : 1,
 }
 pltConfig["scurve_mean_perBit"] = {
     "xlabel": r"S-Curve $\mu$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3400, 71]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3600, 81]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
-    "ylim": [0, 30]
+    "ylim": [0, 30],
+    "idx" : 2,
 }
 pltConfig["scurve_std_perBit"] = {
     "xlabel": r"S-Curve $\sigma$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 300, 31], [0, 300, 31], [0, 300, 31]], # bit 0, bit 1, bit 2
     "p0s": None, # bit 0, bit 1, bit 2
-    "ylim": [0, 60]
+    "ylim": [0, 100],
+    "idx" : 3,
 }
 
 for name, config in pltConfig.items():
@@ -71,8 +87,9 @@ for name, config in pltConfig.items():
         ax.set_ylabel(config["ylabel"] + f" / {bins[1]-bins[0]}" + r" e$^{-}$", fontsize=18, labelpad=10)
         
         # plot
-        hist_vals, bin_edges = np.histogram(inData[name][iB], bins=bins, density=False)
-        ax.hist(inData[name][iB], bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram
+        print(iB, config["idx"], x[:,iB:,config["idx"]].shape, x[:,iB][:,config["idx"]].shape)
+        hist_vals, bin_edges = np.histogram(x[:,iB][:,config["idx"]], bins=bins, density=False) # inData[name][iB]
+        ax.hist(x[:,iB][:,config["idx"]], bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram # inData[name][iB]
         
         # gaussian fit
         if config["p0s"] is not None:
