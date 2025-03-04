@@ -42,7 +42,7 @@ ax.set_ylim(0, 1.24)
 for iP in range(scurve.shape[0]):
     for iB in range(scurve.shape[1]):
         ax.plot(nelectron_asics, scurve[iP, iB])
-        print(f"Pixel {iP}, Bit {iB} (50%, mu, \sigma): ", features[iP, iB][1:])
+        print(f"Pixel {iP}, Bit {iB} (50%, mu, sigma): ", features[iP, iB][1:])
 
 # set ticks
 SetTicks(ax)
