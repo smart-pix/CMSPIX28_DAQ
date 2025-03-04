@@ -30,22 +30,12 @@ args = parser.parse_args()
 # scurve_std_perBit = inData[:,:,3] # inData["scurve_std_perBit"]
 
 # input file
-x = np.load(args.inFile)
-print(x.shape)
+inData = np.load(args.inFile)
+features = inData["features"]
 info = inspectPath(os.path.dirname(args.inFile))
 
 # output directory
 outDir = "./plots" # os.path.dirname(inFile)
-
-# we want to plot matrix bit order vs mean
-# fig, ax = plt.subplots(figsize=(6,6))
-# temp_x = np.linspace(0, 767, 768)
-# temp_y = scurve_std_perBit.T.flatten()
-# # print(temp_y)
-# idx = temp_y>0
-# ax.scatter(temp_x[idx], temp_y[idx])
-# # ax.set_ylim(0,300)
-# plt.savefig(os.path.join(outDir, "test.pdf"), bbox_inches='tight')
 
 pltConfig = {}
 pltConfig["nelectron_asic_50perc_perBit"] = {
@@ -87,9 +77,9 @@ for name, config in pltConfig.items():
         ax.set_ylabel(config["ylabel"] + f" / {bins[1]-bins[0]}" + r" e$^{-}$", fontsize=18, labelpad=10)
         
         # plot
-        print(iB, config["idx"], x[:,iB:,config["idx"]].shape, x[:,iB][:,config["idx"]].shape)
-        hist_vals, bin_edges = np.histogram(x[:,iB][:,config["idx"]], bins=bins, density=False) # inData[name][iB]
-        ax.hist(x[:,iB][:,config["idx"]], bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram # inData[name][iB]
+        print(iB, config["idx"], features[:,iB:,config["idx"]].shape, features[:,iB][:,config["idx"]].shape)
+        hist_vals, bin_edges = np.histogram(features[:,iB][:,config["idx"]], bins=bins, density=False) # inData[name][iB]
+        ax.hist(features[:,iB][:,config["idx"]], bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram # inData[name][iB]
         
         # gaussian fit
         if config["p0s"] is not None:

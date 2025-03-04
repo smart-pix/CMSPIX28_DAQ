@@ -19,7 +19,8 @@ parser.add_argument("-o", '--outDir', type=str, default="./plots", help='Input f
 args = parser.parse_args()
 
 # Load data and info
-x = np.load(args.inFile)
+inData = np.load(args.inFile)
+features = inData["features"]
 info = inspectPath(os.path.dirname(args.inFile))
 
 # get output directory
@@ -84,7 +85,7 @@ for name, config in pltConfig.items():
     ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
 
     # set y limit
-    maxValue = np.max(x[:,:,config["idx"]])
+    maxValue = np.max(features[:,:,config["idx"]])
     ylimMax = 1.35 * maxValue
     ax.set_ylim(0, ylimMax)
 
@@ -92,11 +93,11 @@ for name, config in pltConfig.items():
     color = ["blue", "red", "orange"]
     for iB in range(3):
         # get vth per bit
-        x_ = x[:,iB][:,0]
+        x_ = features[:,iB][:,0]
         if config["vthPerBit"]:
             x_ = vth_to_vthPerBit(x_, iB)
         # get y values
-        y_ = x[:,iB][:,config["idx"]]
+        y_ = features[:,iB][:,config["idx"]]
         mask = y_ > 0
         ax.plot(x_[mask], y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
         

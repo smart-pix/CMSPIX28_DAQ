@@ -63,7 +63,6 @@ def analysis(config):
         else:
             print("Not recognized file extension: ", f)
 
-
         # compute fraction with 1's
         frac = x.sum(0)/x.shape[0]
         # save to lists
@@ -74,7 +73,7 @@ def analysis(config):
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
     data = np.stack(data, 1)
-    
+
     # filter threshold to analyse the data
     sCutHi = 0.8
     sCutLo = 0.2
@@ -120,8 +119,8 @@ def analysis(config):
         t_ += [fiftyPerc_, mean_, std_]
         # append
         temp.append(t_)
-
-    return temp
+    # print(data.shape, nelectron_asics.shape, np.array(temp).shape)
+    return temp, nelectron_asics, data
 
 if __name__ == "__main__":
 
@@ -156,11 +155,34 @@ if __name__ == "__main__":
     else:
         results = mp.Pool(args.ncpu).map(analysis, confs)
 
+    # split up
+    features = []
+    nelectron_asics = results[0][1] # same for all inputs
+    scurve = []
+    for i,j,k in results:
+        features.append(i)
+        scurve.append(k)
+    features = np.array(features)
+    nelectron_asics = np.array(nelectron_asics)
+    scurve = np.array(scurve)
+    print(features.shape, nelectron_asics.shape, scurve.shape)
+
     # process
-    results = np.array(results)
-    output_file = os.path.join(outDir, "scurve_data.npy")
+    # results = np.array(results)
+    # output_file = os.path.join(outDir, "scurve_data.npy")
+    # print(f"Data saved to {output_file}")
+    # np.save(output_file, results)
+
+    # process
+    output_file = os.path.join(outDir, "scurve_data.npz")
     print(f"Data saved to {output_file}")
-    np.save(output_file, results)
+    np.savez(
+        output_file, 
+        features = features, 
+        nelectron_asics = nelectron_asics, 
+        scurve = scurve
+    )
+
 
     # plot
     # fig, ax = plt.subplots(figsize=(6,6))
