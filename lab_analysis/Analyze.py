@@ -6,6 +6,7 @@ import os
 import glob
 import argparse
 import multiprocessing as mp
+from tqdm import tqdm 
 
 # Global values
 Pgain = 1 # Pixel programming gain - value 1-2-3
@@ -35,6 +36,7 @@ def analysis(config):
 
     # pick up configurations
     info = inspectPath(config["inPath"])
+    print(info)
 
     # get list of files
     files = list(glob.glob(os.path.join(config["inPath"], "*.npz")))
@@ -44,7 +46,7 @@ def analysis(config):
     data = []
 
     # loop over the files
-    for iF, inFileName in enumerate(files):
+    for iF, inFileName in tqdm(enumerate(files), desc="Processing", unit="step"):
 
         v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".npz")[0])
         v_asic *= VtomV # convert v_asic to mV from V
@@ -121,12 +123,12 @@ if __name__ == "__main__":
     # user arguments
     parser = argparse.ArgumentParser(description='Producing simple histograms.')
     parser.add_argument('-i', '--inFilePath', required=True, help='Path to input files')
-    parser.add_argument("--PlotOnlyCombined", action="store_true", help="Only plot the combined s-curves")
-    parser.add_argument('-j', '--ncpu', type=int, default=4, help='Number of CPUs to use')
+    parser.add_argument('-j', '--ncpu', type=int, default=1, help='Number of CPUs to use')
+    parser.add_argument('-o', '--outDir', default=None, help="Output directory. If not provided then use directory of inFilePath")
     args = parser.parse_args()
     
     # outdir
-    outDir = os.path.join(os.path.dirname(args.inFilePath),f"plots")
+    outDir = os.path.join(args.outDir if args.outDir else os.path.dirname(args.inFilePath), f"plots")
     os.makedirs(outDir, exist_ok=True)
     os.chmod(outDir, mode=0o777)
 
