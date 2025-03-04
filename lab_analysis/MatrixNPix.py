@@ -19,15 +19,8 @@ def gaussian(x, amplitude, mean, std_dev):
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFile', type=str, required=True, help='Input file path')
-parser.add_argument("-o", '--outDir', type=str, default="./plots", help='Input file path')
+parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
 args = parser.parse_args()
-
-# pick up the data
-# inFile = "/mnt/local/CMSPIX28/Scurve/data/2025.02.20_SuperPixV2/plots/scurve_data.npz"
-# inData = np.load(args.inFile)
-# nelectron_asic_50perc_perBit = inData[:,:,1] # inData["nelectron_asic_50perc_perBit"]
-# scurve_mean_perBit = inData[:,:,2] # inData["scurve_mean_perBit"]
-# scurve_std_perBit = inData[:,:,3] # inData["scurve_std_perBit"]
 
 # input file
 inData = np.load(args.inFile)
@@ -35,7 +28,7 @@ features = inData["features"]
 info = inspectPath(os.path.dirname(args.inFile))
 
 # output directory
-outDir = "./plots" # os.path.dirname(inFile)
+outDir = args.outDir if args.outDir else os.path.dirname(args.inFile)
 
 pltConfig = {}
 pltConfig["nelectron_asic_50perc_perBit"] = {

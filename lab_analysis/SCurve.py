@@ -15,7 +15,7 @@ from Analyze import inspectPath
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFile', type=str, required=True, help='Input file path')
-parser.add_argument("-o", '--outDir', type=str, default="./plots", help='Input file path')
+parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
 args = parser.parse_args()
 
 # input file
@@ -28,7 +28,7 @@ scurve = inData["scurve"]
 info = inspectPath(os.path.dirname(args.inFile))
 
 # get output directory
-outDir = args.outDir
+outDir = args.outDir if args.outDir else os.path.dirname(args.inFile)
 
 # set up figure
 fig, ax = plt.subplots(figsize=(6,6))
