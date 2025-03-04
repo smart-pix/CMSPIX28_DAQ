@@ -110,7 +110,7 @@ def analysis(config):
 
         # append
         t_ = []
-        if info["testType"] == "MatrixNPix":
+        if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
             t_.append(info["nPix"])
         elif info["testType"] == "MatrixVTH":
             t_.append(info["VTH"])
