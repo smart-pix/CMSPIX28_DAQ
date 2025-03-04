@@ -39,7 +39,7 @@ def analysis(config):
     print(info)
 
     # get list of files
-    files = list(glob.glob(os.path.join(config["inPath"], "*.npz")))
+    files = list(glob.glob(os.path.join(config["inPath"], "*.np*")))
 
     # one file per voltage
     v_asics = []
@@ -48,19 +48,24 @@ def analysis(config):
     # loop over the files
     for iF, inFileName in tqdm(enumerate(files), desc="Processing", unit="step"):
 
-        v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".npz")[0])
+        v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".np")[0])
         v_asic *= VtomV # convert v_asic to mV from V
 
         # pick up the data
-        with np.load(inFileName) as f:
-            x = f["data"]
-            # only take pixel we want
-            x = x.reshape(-1, 256, 3)
-            x = x[:,int(info["nPix"])]
+        if inFileName.endswith(".npy"):
+            x = np.load(inFileName) # new file format
+        elif inFileName.endswith(".npz"):
+            with np.load(inFileName) as f:
+                x = f["data"]
+                # only take pixel we want
+                x = x.reshape(-1, 256, 3)
+                x = x[:,int(info["nPix"])]
+        else:
+            print("Not recognized file extension: ", f)
+
 
         # compute fraction with 1's
         frac = x.sum(0)/x.shape[0]
-
         # save to lists
         v_asics.append(v_asic)
         data.append(frac)
@@ -135,13 +140,11 @@ if __name__ == "__main__":
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
     inPathList = [i for i in inPathList if "plots" not in i]
-    # inPathList = inPathList[:5]
 
     # create configurations
     confs = []
     for inPath in inPathList:
         confs.append({
-
             "inPath": inPath,
         })
 
@@ -155,7 +158,6 @@ if __name__ == "__main__":
 
     # process
     results = np.array(results)
-    print(results[:,:,0].flatten())
     output_file = os.path.join(outDir, "scurve_data.npy")
     print(f"Data saved to {output_file}")
     np.save(output_file, results)
