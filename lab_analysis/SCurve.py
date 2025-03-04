@@ -41,7 +41,8 @@ ax.set_ylim(0, 1.24)
 # plot all bits on the same plot
 for iP in range(scurve.shape[0]):
     for iB in range(scurve.shape[1]):
-        ax.plot(nelectron_asics, scurve[iP, iB]) # , marker="o", label=f"Bit {iB}") 
+        ax.plot(nelectron_asics, scurve[iP, iB])
+        print(f"Pixel {iP}, Bit {iB} (50%, mu, \sigma): ", features[iP, iB][1:])
 
 # set ticks
 SetTicks(ax)
