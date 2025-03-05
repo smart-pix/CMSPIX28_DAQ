@@ -132,7 +132,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # outdir
-    outDir = os.path.join(args.outDir if args.outDir else os.path.dirname(args.inFilePath), f"plots")
+    outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
     os.makedirs(outDir, exist_ok=True)
     os.chmod(outDir, mode=0o777)
 
@@ -182,25 +182,3 @@ if __name__ == "__main__":
         nelectron_asics = nelectron_asics, 
         scurve = scurve
     )
-
-
-    # plot
-    # fig, ax = plt.subplots(figsize=(6,6))
-    # # Add titles and labels
-    # ax.set_xlabel("Number of Electrons", fontsize=18, labelpad=10)
-    # ax.set_ylabel("Fraction of One's", fontsize=18, labelpad=10)
-    # # set limits
-    # ax.set_xlim(0, 3000)
-    # ax.set_ylim(-0.05, 1.05)
-    # # style ticks
-    # ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
-    # ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
-    # ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-    # ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
-    # ax.tick_params(axis='both', which='major', labelsize=14, length=5, width=1, direction="in")
-    # ax.tick_params(axis='both', which='minor', labelsize=10, length=3, width=1, direction="in")
-    # # save to file
-    # outFileName = os.path.join(outDir,"FullSCurve.pdf")
-    # print(f"Saving file to {outFileName}")
-    # plt.savefig(outFileName, bbox_inches='tight')
-    # plt.close()

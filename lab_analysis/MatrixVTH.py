@@ -21,10 +21,13 @@ args = parser.parse_args()
 # Load data and info
 inData = np.load(args.inFilePath)
 features = inData["features"]
+
+# get information
 info = inspectPath(os.path.dirname(args.inFilePath))
+print(info)
 
 # get output directory
-outDir = os.path.join(args.outDir if args.outDir else os.path.dirname(args.inFilePath), f"plots")
+outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
 os.makedirs(outDir, exist_ok=True)
 os.chmod(outDir, mode=0o777)
 
