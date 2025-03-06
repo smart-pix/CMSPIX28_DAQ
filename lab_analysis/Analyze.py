@@ -139,6 +139,15 @@ if __name__ == "__main__":
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
     inPathList = [i for i in inPathList if "plots" not in i]
+    
+    # Sort the list based on the number in the final directory
+    try:
+        def extract_number(path):
+            match = re.search(r'(\d+(\.\d+)?)(?=\D*$)', path)
+            return float(match.group()) if match else float('inf')
+        inPathList.sort(key=extract_number)
+    except:
+        print("Could not sort the list based on the number in the final directory")
 
     # create configurations
     confs = []

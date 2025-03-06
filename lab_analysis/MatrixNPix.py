@@ -39,7 +39,7 @@ pltConfig = {}
 pltConfig["nelectron_asic_50perc_perBit"] = {
     "xlabel": r"S-Curve Half Max [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3600, 81]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
     "ylim": [0, 35],
     "idx" : 1,
@@ -47,7 +47,7 @@ pltConfig["nelectron_asic_50perc_perBit"] = {
 pltConfig["scurve_mean_perBit"] = {
     "xlabel": r"S-Curve $\mu$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3600, 81]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
     "ylim": [0, 30],
     "idx" : 2,
@@ -55,7 +55,7 @@ pltConfig["scurve_mean_perBit"] = {
 pltConfig["scurve_std_perBit"] = {
     "xlabel": r"S-Curve $\sigma$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 300, 31], [0, 300, 31], [0, 300, 31]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 500, 51], [0, 500, 51], [0, 500, 51]], # bit 0, bit 1, bit 2
     "p0s": None, # bit 0, bit 1, bit 2
     "ylim": [0, 109],
     "idx" : 3,
@@ -75,7 +75,7 @@ for name, config in pltConfig.items():
         ax.set_ylabel(config["ylabel"] + f" / {bins[1]-bins[0]}" + r" e$^{-}$", fontsize=18, labelpad=10)
         
         # plot
-        print(iB, config["idx"], features[:,iB:,config["idx"]].shape, features[:,iB][:,config["idx"]].shape)
+        print(iB, config["idx"], features[:,iB:,config["idx"]].shape, features[:,iB][:,config["idx"]].shape, np.max(features[:,iB][:,config["idx"]]))
         hist_vals, bin_edges = np.histogram(features[:,iB][:,config["idx"]], bins=bins, density=False) # inData[name][iB]
         ax.hist(features[:,iB][:,config["idx"]], bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram # inData[name][iB]
         
