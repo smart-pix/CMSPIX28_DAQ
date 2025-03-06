@@ -56,7 +56,7 @@ pltConfig["scurve_std_perBit"] = {
     "xlabel": r"S-Curve $\sigma$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 500, 51], [0, 500, 51], [0, 500, 51]], # bit 0, bit 1, bit 2
-    "p0s": None, # bit 0, bit 1, bit 2
+    "p0s": [[50, 50, 50], [50, 50, 50], [50, 50, 50]], # bit 0, bit 1, bit 2
     "ylim": [0, 109],
     "idx" : 3,
 }
