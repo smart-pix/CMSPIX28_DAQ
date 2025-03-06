@@ -85,7 +85,7 @@ for name, config in pltConfig.items():
             popt, _ = curve_fit(gaussian, bin_centers, hist_vals, p0=config["p0s"][iB]) # fit gaussian
             amplitude, mean , std_dev = popt
             y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
-            ax.plot(bin_centers, y_fit, color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})') # fit
+            ax.plot(bin_centers, y_fit, color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
         
         # add legend
         legend = ax.legend(fontsize=12)
