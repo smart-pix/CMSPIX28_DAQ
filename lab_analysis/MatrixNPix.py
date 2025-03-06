@@ -30,7 +30,7 @@ info = inspectPath(os.path.dirname(args.inFilePath))
 # output directory
 outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
 os.makedirs(outDir, exist_ok=True)
-os.chmod(outDir, mode=0o777)
+# os.chmod(outDir, mode=0o777)
 
 pltConfig = {}
 pltConfig["nelectron_asic_50perc_perBit"] = {
@@ -38,7 +38,7 @@ pltConfig["nelectron_asic_50perc_perBit"] = {
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3600, 81]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
-    "ylim": [0, 30],
+    "ylim": [0, 35],
     "idx" : 1,
 }
 pltConfig["scurve_mean_perBit"] = {
@@ -54,7 +54,7 @@ pltConfig["scurve_std_perBit"] = {
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 300, 31], [0, 300, 31], [0, 300, 31]], # bit 0, bit 1, bit 2
     "p0s": None, # bit 0, bit 1, bit 2
-    "ylim": [0, 100],
+    "ylim": [0, 109],
     "idx" : 3,
 }
 

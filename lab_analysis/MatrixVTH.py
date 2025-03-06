@@ -29,7 +29,7 @@ print(info)
 # get output directory
 outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
 os.makedirs(outDir, exist_ok=True)
-os.chmod(outDir, mode=0o777)
+# os.chmod(outDir, mode=0o777)
 
 # plot config
 pltConfig = {}
