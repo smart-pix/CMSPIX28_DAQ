@@ -25,7 +25,10 @@ args = parser.parse_args()
 # input file
 inData = np.load(args.inFilePath)
 features = inData["features"]
+
+# get info
 info = inspectPath(os.path.dirname(args.inFilePath))
+print(info)
 
 # output directory
 outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
@@ -108,9 +111,10 @@ for name, config in pltConfig.items():
 
         # add label and text
         SmartPixLabel(ax, 0.05, 0.9, size=22)
-        ax.text(0.05, 0.85, "ROIC V1, ID 11, SuperPixel 2", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        # ax.text(0.05, 0.85, "ROIC V1, ID 11, SuperPixel 2", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
         # Add text to the plot showing fitted Gaussian parameters
-        amplitude, mean , std_dev = popt
+        # amplitude, mean , std_dev = popt
         # text = f'Bit = {iB}''\n'fr'Amplitude = {amplitude:.2f}''\n'fr'$\mu$ = {mean:.2f}''\n'fr'$\sigma$ = {std_dev:.2f}' if config["p0s"] is not None else f'Bit = {iB}'
         # ax.text(0.9, 0.90, text, transform=ax.transAxes, fontsize=12, color="black", ha='right', va='center')
 
