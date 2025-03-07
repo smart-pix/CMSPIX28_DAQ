@@ -6,6 +6,7 @@ import os
 import glob
 import argparse
 import multiprocessing as mp
+from tqdm import tqdm 
 
 # Global values
 Pgain = 1 # Pixel programming gain - value 1-2-3
@@ -35,30 +36,35 @@ def analysis(config):
 
     # pick up configurations
     info = inspectPath(config["inPath"])
+    print(info)
 
     # get list of files
-    files = list(glob.glob(os.path.join(config["inPath"], "*.npz")))
+    files = list(glob.glob(os.path.join(config["inPath"], "*.np*")))
 
     # one file per voltage
     v_asics = []
     data = []
 
     # loop over the files
-    for iF, inFileName in enumerate(files):
+    for iF, inFileName in tqdm(enumerate(files), desc="Processing", unit="step"):
 
-        v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".npz")[0])
+        v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".np")[0])
         v_asic *= VtomV # convert v_asic to mV from V
 
         # pick up the data
-        with np.load(inFileName) as f:
-            x = f["data"]
-            # only take pixel we want
-            x = x.reshape(-1, 256, 3)
-            x = x[:,int(info["nPix"])]
+        if inFileName.endswith(".npy"):
+            x = np.load(inFileName) # new file format
+        elif inFileName.endswith(".npz"):
+            with np.load(inFileName) as f:
+                x = f["data"]
+                # only take pixel we want
+                x = x.reshape(-1, 256, 3)
+                x = x[:,int(info["nPix"])]
+        else:
+            print("Not recognized file extension: ", f)
 
         # compute fraction with 1's
         frac = x.sum(0)/x.shape[0]
-
         # save to lists
         v_asics.append(v_asic)
         data.append(frac)
@@ -67,7 +73,7 @@ def analysis(config):
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
     data = np.stack(data, 1)
-    
+
     # filter threshold to analyse the data
     sCutHi = 0.8
     sCutLo = 0.2
@@ -103,7 +109,7 @@ def analysis(config):
 
         # append
         t_ = []
-        if info["testType"] == "MatrixNPix":
+        if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
             t_.append(info["nPix"])
         elif info["testType"] == "MatrixVTH":
             t_.append(info["VTH"])
@@ -113,33 +119,40 @@ def analysis(config):
         t_ += [fiftyPerc_, mean_, std_]
         # append
         temp.append(t_)
-
-    return temp
+    # print(data.shape, nelectron_asics.shape, np.array(temp).shape)
+    return temp, nelectron_asics, data
 
 if __name__ == "__main__":
 
     # user arguments
     parser = argparse.ArgumentParser(description='Producing simple histograms.')
     parser.add_argument('-i', '--inFilePath', required=True, help='Path to input files')
-    parser.add_argument("--PlotOnlyCombined", action="store_true", help="Only plot the combined s-curves")
-    parser.add_argument('-j', '--ncpu', type=int, default=4, help='Number of CPUs to use')
+    parser.add_argument('-j', '--ncpu', type=int, default=1, help='Number of CPUs to use')
+    parser.add_argument('-o', '--outDir', default=None, help="Output directory. If not provided then use directory of inFilePath")
     args = parser.parse_args()
     
     # outdir
-    outDir = os.path.join(os.path.dirname(args.inFilePath),f"plots")
+    outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
     os.makedirs(outDir, exist_ok=True)
     os.chmod(outDir, mode=0o777)
 
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
     inPathList = [i for i in inPathList if "plots" not in i]
-    # inPathList = inPathList[:5]
+    
+    # Sort the list based on the number in the final directory
+    try:
+        def extract_number(path):
+            match = re.search(r'(\d+(\.\d+)?)(?=\D*$)', path)
+            return float(match.group()) if match else float('inf')
+        inPathList.sort(key=extract_number)
+    except:
+        print("Could not sort the list based on the number in the final directory")
 
     # create configurations
     confs = []
     for inPath in inPathList:
         confs.append({
-
             "inPath": inPath,
         })
 
@@ -151,30 +164,30 @@ if __name__ == "__main__":
     else:
         results = mp.Pool(args.ncpu).map(analysis, confs)
 
-    # process
-    results = np.array(results)
-    print(results[:,:,0].flatten())
-    output_file = os.path.join(outDir, "scurve_data.npy")
-    print(f"Data saved to {output_file}")
-    np.save(output_file, results)
+    # split up
+    features = []
+    nelectron_asics = results[0][1] # same for all inputs
+    scurve = []
+    for i,j,k in results:
+        features.append(i)
+        scurve.append(k)
+    features = np.array(features)
+    nelectron_asics = np.array(nelectron_asics)
+    scurve = np.array(scurve)
+    print(features.shape, nelectron_asics.shape, scurve.shape)
 
-    # plot
-    # fig, ax = plt.subplots(figsize=(6,6))
-    # # Add titles and labels
-    # ax.set_xlabel("Number of Electrons", fontsize=18, labelpad=10)
-    # ax.set_ylabel("Fraction of One's", fontsize=18, labelpad=10)
-    # # set limits
-    # ax.set_xlim(0, 3000)
-    # ax.set_ylim(-0.05, 1.05)
-    # # style ticks
-    # ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
-    # ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=5))
-    # ax.xaxis.set_minor_locator(ticker.AutoMinorLocator())
-    # ax.yaxis.set_minor_locator(ticker.AutoMinorLocator())
-    # ax.tick_params(axis='both', which='major', labelsize=14, length=5, width=1, direction="in")
-    # ax.tick_params(axis='both', which='minor', labelsize=10, length=3, width=1, direction="in")
-    # # save to file
-    # outFileName = os.path.join(outDir,"FullSCurve.pdf")
-    # print(f"Saving file to {outFileName}")
-    # plt.savefig(outFileName, bbox_inches='tight')
-    # plt.close()
+    # process
+    # results = np.array(results)
+    # output_file = os.path.join(outDir, "scurve_data.npy")
+    # print(f"Data saved to {output_file}")
+    # np.save(output_file, results)
+
+    # process
+    output_file = os.path.join(outDir, "scurve_data.npz")
+    print(f"Data saved to {output_file}")
+    np.savez(
+        output_file, 
+        features = features, 
+        nelectron_asics = nelectron_asics, 
+        scurve = scurve
+    )

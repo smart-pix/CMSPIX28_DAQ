@@ -4,57 +4,61 @@ import os
 import matplotlib.pyplot as plt 
 import matplotlib.ticker as ticker
 import mplhep as hep
+import argparse
 
 # plt.style.use(hep.style.ROOT)
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
+from Analyze import inspectPath
 
 # Gaussian function to fit
 def gaussian(x, amplitude, mean, std_dev):
     return amplitude * np.exp(-((x - mean)**2) / (2 * std_dev**2))
 
-# pick up the data
-inFile = "/mnt/local/CMSPIX28/Scurve/data/2025.02.20_SuperPixV2/plots/scurve_data.npz"
-inData = np.load(inFile, allow_pickle=True)
-nelectron_asic_50perc_perBit = inData["nelectron_asic_50perc_perBit"]
-scurve_mean_perBit = inData["scurve_mean_perBit"]
-scurve_std_perBit = inData["scurve_std_perBit"]
+# Argument parser
+parser = argparse.ArgumentParser(description='Process some integers.')
+parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
+parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
+args = parser.parse_args()
+
+# input file
+inData = np.load(args.inFilePath)
+features = inData["features"]
+
+# get info
+info = inspectPath(os.path.dirname(args.inFilePath))
+print(info)
 
 # output directory
-outDir = "./plots" # os.path.dirname(inFile)
-
-# we want to plot matrix bit order vs mean
-# fig, ax = plt.subplots(figsize=(6,6))
-# temp_x = np.linspace(0, 767, 768)
-# temp_y = scurve_std_perBit.T.flatten()
-# # print(temp_y)
-# idx = temp_y>0
-# ax.scatter(temp_x[idx], temp_y[idx])
-# # ax.set_ylim(0,300)
-# plt.savefig(os.path.join(outDir, "test.pdf"), bbox_inches='tight')
+outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
+os.makedirs(outDir, exist_ok=True)
+# os.chmod(outDir, mode=0o777)
 
 pltConfig = {}
 pltConfig["nelectron_asic_50perc_perBit"] = {
     "xlabel": r"S-Curve Half Max [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3400, 71]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
-    "ylim": [0, 30]
+    "ylim": [0, 35],
+    "idx" : 1,
 }
 pltConfig["scurve_mean_perBit"] = {
     "xlabel": r"S-Curve $\mu$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 800, 41], [800, 1600, 41], [2000, 3400, 71]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
-    "ylim": [0, 30]
+    "ylim": [0, 30],
+    "idx" : 2,
 }
 pltConfig["scurve_std_perBit"] = {
     "xlabel": r"S-Curve $\sigma$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 300, 31], [0, 300, 31], [0, 300, 31]], # bit 0, bit 1, bit 2
-    "p0s": None, # bit 0, bit 1, bit 2
-    "ylim": [0, 60]
+    "binConfigs": [[0, 500, 51], [0, 500, 51], [0, 500, 51]], # bit 0, bit 1, bit 2
+    "p0s": [[50, 50, 50], [50, 50, 50], [50, 50, 50]], # bit 0, bit 1, bit 2
+    "ylim": [0, 109],
+    "idx" : 3,
 }
 
 for name, config in pltConfig.items():
@@ -71,8 +75,9 @@ for name, config in pltConfig.items():
         ax.set_ylabel(config["ylabel"] + f" / {bins[1]-bins[0]}" + r" e$^{-}$", fontsize=18, labelpad=10)
         
         # plot
-        hist_vals, bin_edges = np.histogram(inData[name][iB], bins=bins, density=False)
-        ax.hist(inData[name][iB], bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram
+        print(iB, config["idx"], features[:,iB:,config["idx"]].shape, features[:,iB][:,config["idx"]].shape, np.max(features[:,iB][:,config["idx"]]))
+        hist_vals, bin_edges = np.histogram(features[:,iB][:,config["idx"]], bins=bins, density=False) # inData[name][iB]
+        ax.hist(features[:,iB][:,config["idx"]], bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram # inData[name][iB]
         
         # gaussian fit
         if config["p0s"] is not None:
@@ -80,7 +85,7 @@ for name, config in pltConfig.items():
             popt, _ = curve_fit(gaussian, bin_centers, hist_vals, p0=config["p0s"][iB]) # fit gaussian
             amplitude, mean , std_dev = popt
             y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
-            ax.plot(bin_centers, y_fit, color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})') # fit
+            ax.plot(bin_centers, y_fit, color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
         
         # add legend
         legend = ax.legend(fontsize=12)
@@ -106,9 +111,10 @@ for name, config in pltConfig.items():
 
         # add label and text
         SmartPixLabel(ax, 0.05, 0.9, size=22)
-        ax.text(0.05, 0.85, "ROIC V1, ID 11, SuperPixel 2", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        # ax.text(0.05, 0.85, "ROIC V1, ID 11, SuperPixel 2", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
         # Add text to the plot showing fitted Gaussian parameters
-        amplitude, mean , std_dev = popt
+        # amplitude, mean , std_dev = popt
         # text = f'Bit = {iB}''\n'fr'Amplitude = {amplitude:.2f}''\n'fr'$\mu$ = {mean:.2f}''\n'fr'$\sigma$ = {std_dev:.2f}' if config["p0s"] is not None else f'Bit = {iB}'
         # ax.text(0.9, 0.90, text, transform=ax.transAxes, fontsize=12, color="black", ha='right', va='center')
 

@@ -14,16 +14,22 @@ from Analyze import inspectPath
 
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument("-i", '--inFile', type=str, required=True, help='Input file path')
-parser.add_argument("-o", '--outDir', type=str, default="./plots", help='Input file path')
+parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
+parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
 args = parser.parse_args()
 
 # Load data and info
-x = np.load(args.inFile)
-info = inspectPath(os.path.dirname(args.inFile))
+inData = np.load(args.inFilePath)
+features = inData["features"]
+
+# get information
+info = inspectPath(os.path.dirname(args.inFilePath))
+print(info)
 
 # get output directory
-outDir = args.outDir # "./plots" # os.path.dirname(inFile)
+outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
+os.makedirs(outDir, exist_ok=True)
+# os.chmod(outDir, mode=0o777)
 
 # plot config
 pltConfig = {}
@@ -84,7 +90,7 @@ for name, config in pltConfig.items():
     ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
 
     # set y limit
-    maxValue = np.max(x[:,:,config["idx"]])
+    maxValue = np.max(features[:,:,config["idx"]])
     ylimMax = 1.35 * maxValue
     ax.set_ylim(0, ylimMax)
 
@@ -92,11 +98,11 @@ for name, config in pltConfig.items():
     color = ["blue", "red", "orange"]
     for iB in range(3):
         # get vth per bit
-        x_ = x[:,iB][:,0]
+        x_ = features[:,iB][:,0]
         if config["vthPerBit"]:
             x_ = vth_to_vthPerBit(x_, iB)
         # get y values
-        y_ = x[:,iB][:,config["idx"]]
+        y_ = features[:,iB][:,config["idx"]]
         mask = y_ > 0
         ax.plot(x_[mask], y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
         
