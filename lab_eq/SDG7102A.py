@@ -1,6 +1,7 @@
 import time
 import os
 import numpy as np
+import tqdm
 def SDG7102A_SWEEP_ORIGIN(HLEV=0.3):
 
     d = os.open('/dev/usbtmc0', os.O_RDWR)
@@ -55,7 +56,7 @@ stepList = np.linspace(v_min, v_max, n_step)
 #     print(v)
 #     SDG7102A_SWEEP_ORIGIN()
 
-for v in stepList:
+for v in tqdm.tqdm(stepList, desc="Voltage Step"):
     print("second code sweep test")
     print(v)
     SDG7102A_SWEEP(0.4)
