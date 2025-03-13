@@ -1,5 +1,6 @@
 import time
 import os
+import numpy as np
 def SDG7102A_SWEEP_ORIGIN(HLEV=0.3):
 
     d = os.open('/dev/usbtmc0', os.O_RDWR)
@@ -22,16 +23,14 @@ def SDG7102A_SWEEP_ORIGIN(HLEV=0.3):
 def SDG7102A_SWEEP(HLEV=0.2):
     input_commands = [
         f"C1:BSWV HLEV,{HLEV}V",  # Set high-level voltage
-        "C1:BSWV LLEV,0V",  # Set low-level voltage
+        # "C1:BSWV LLEV,0V",  # Set low-level voltage
     ]
     
     try:
         # Open the device file in read/write binary mode using 'with'
         with open('/dev/usbtmc0', 'r+b') as d:
             for cmd in input_commands:
-                print(f"Sending command: {cmd}")
                 d.write(cmd.encode())  # Send command to device
-                print("Command sent")
                 # Only wait and read response if command ends with "?"
                 if cmd.endswith("?"):
                     time.sleep(1)  # Give the device time to respond
@@ -45,5 +44,20 @@ def SDG7102A_SWEEP(HLEV=0.2):
     except Exception as e:
         print(f"Error communicating with the device: {e}")
 
-SDG7102A_SWEEP_ORIGIN()
-SDG7102A_SWEEP(0.4)
+v_min = 0.001
+v_max = 0.4
+v_step = 0.001
+n_step = int((v_max - v_min)/v_step)+1
+stepList = np.linspace(v_min, v_max, n_step)
+
+# for v in stepList:
+#     print("first code sweep test")
+#     print(v)
+#     SDG7102A_SWEEP_ORIGIN()
+
+for v in stepList:
+    print("second code sweep test")
+    print(v)
+    SDG7102A_SWEEP(0.4)
+
+
