@@ -160,7 +160,15 @@ if __name__ == "__main__":
     args = parser.parse_args()
     
     # outdir
-    outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
+    if args.outDir:
+        outDir = args.outDir
+    elif "*" in args.inFilePath:
+        outDir = os.path.join(os.path.dirname(args.inFilePath), f"plots")
+    elif "*" not in args.inFilePath:
+        outDir = os.path.join(args.inFilePath, f"plots")
+    else:
+        outDir = "./"
+    # outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
     os.makedirs(outDir, exist_ok=True)
     # os.chmod(outDir, mode=0o777)
 
