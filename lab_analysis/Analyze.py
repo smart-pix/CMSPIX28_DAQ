@@ -40,6 +40,8 @@ def analysis(config):
 
     # get list of files
     files = list(glob.glob(os.path.join(config["inPath"], "*.np*")))
+    # remove settings files
+    files = [i for i in files if all(x not in i for x in ["steps", "settings"])]
 
     # one file per voltage
     v_asics = []
@@ -64,15 +66,27 @@ def analysis(config):
             print("Not recognized file extension: ", f)
 
         # compute fraction with 1's
-        frac = x.sum(0)/x.shape[0]
+        if info["testType"] == "MatrixCalibration":
+            frac = x.sum(2) / x.shape[2] # sample dimension is 2
+            frac = np.transpose(frac, (0,2,1)) # pixel, bit, sample setting
+            frac = frac.reshape(frac.shape[0]*frac.shape[1], -1)
+        else:
+            frac = x.sum(0)/x.shape[0]
         # save to lists
         v_asics.append(v_asic)
         data.append(frac)
+        # print(frac.shape)
                         
     # convert
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
-    data = np.stack(data, 1)
+    data = np.stack(data, -1)
+    
+    # no setting scan per bit then add a setting dimension
+    if info["testType"] in ["MatrixNPix", "MatrixVTH", "Single"]:
+        data = data.reshape(data.shape[0], 1, data.shape[1])
+
+    print("Expected dimensions (nBit, nSettings, nVasicStep). Actual: ", data.shape)
 
     # filter threshold to analyse the data
     sCutHi = 0.8
@@ -80,47 +94,61 @@ def analysis(config):
     stds_threshold = 200
 
     # loop over bits
-    temp = []
-    for iB, bit in enumerate(data):
+    
+
+    # loop over bits
+    features = []
+    for iB in range(data.shape[0]):
+        temp = []
+        # loop over settings
+        for iS in range(data.shape[1]):
+
+            bit = data[iB][iS]
+
+            # temp default values
+            fiftyPerc_, mean_, std_ = -999, -999, -999
+
+            # if pass threshold, then fit and get 50% values
+            if bit[0] < sCutLo and bit[-1] > sCutHi:
+
+                # fit
+                try:
+                    fitResult=curve_fit(
+                        f=norm.cdf,
+                        xdata=nelectron_asics,
+                        ydata=bit,
+                        p0=[600,30],
+                        bounds=((-np.inf,0),(np.inf,np.inf))
+                    )
+                    mean_, std_ = fitResult[0]
+                except:
+                    print("fit failed")
+                    mean_, std_ = -1, -1
+
+                # pick up 50% values
+                idx_closest = np.argmin(np.abs(bit - 0.5))
+                fiftyPerc_ = nelectron_asics[idx_closest]
+
+            # append
+            t_ = []
+            if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
+                t_.append(info["nPix"])
+            elif info["testType"] == "MatrixVTH":
+                t_.append(info["VTH"])
+            elif info["testType"] == "MatrixCalibration":
+                t_.append(-1)
+            else:
+                t_.append(-1)
+            # add other entries
+            t_ += [fiftyPerc_, mean_, std_]
         
-        # temp default values
-        fiftyPerc_, mean_, std_ = -999, -999, -999
+            # append
+            temp.append(t_)
+    
+        features.append(temp)
 
-        # if pass threshold, then fit and get 50% values
-        if bit[0] < sCutLo and bit[-1] > sCutHi:
-
-            # fit
-            try:
-                fitResult=curve_fit(
-                    f=norm.cdf,
-                    xdata=nelectron_asics,
-                    ydata=bit,
-                    p0=[600,30],
-                    bounds=((-np.inf,0),(np.inf,np.inf))
-                )
-                mean_, std_ = fitResult[0]
-            except:
-                print("fit failed")
-                mean_, std_ = -1, -1
-
-            # pick up 50% values
-            idx_closest = np.argmin(np.abs(bit - 0.5))
-            fiftyPerc_ = nelectron_asics[idx_closest]
-
-        # append
-        t_ = []
-        if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
-            t_.append(info["nPix"])
-        elif info["testType"] == "MatrixVTH":
-            t_.append(info["VTH"])
-        else:
-            t_.append(-1)
-        # add other entries
-        t_ += [fiftyPerc_, mean_, std_]
-        # append
-        temp.append(t_)
     # print(data.shape, nelectron_asics.shape, np.array(temp).shape)
-    return temp, nelectron_asics, data
+    return features, nelectron_asics, data
 
 if __name__ == "__main__":
 
@@ -134,11 +162,11 @@ if __name__ == "__main__":
     # outdir
     outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
     os.makedirs(outDir, exist_ok=True)
-    os.chmod(outDir, mode=0o777)
+    # os.chmod(outDir, mode=0o777)
 
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
-    inPathList = [i for i in inPathList if "plots" not in i]
+    inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
     
     # Sort the list based on the number in the final directory
     try:
@@ -174,13 +202,7 @@ if __name__ == "__main__":
     features = np.array(features)
     nelectron_asics = np.array(nelectron_asics)
     scurve = np.array(scurve)
-    print(features.shape, nelectron_asics.shape, scurve.shape)
-
-    # process
-    # results = np.array(results)
-    # output_file = os.path.join(outDir, "scurve_data.npy")
-    # print(f"Data saved to {output_file}")
-    # np.save(output_file, results)
+    print("Features, nelectron_asic, scurve shapes: ", features.shape, nelectron_asics.shape, scurve.shape)
 
     # process
     output_file = os.path.join(outDir, "scurve_data.npz")
