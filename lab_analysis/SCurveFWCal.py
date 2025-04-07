@@ -20,12 +20,14 @@ inData = np.load(args.inFilePath)
 features = inData["features"]
 nelectron_asics = inData["nelectron_asics"]
 scurve = inData["scurve"]
-print(scurve.shape)
+print("scurve shape = ", scurve.shape)
 settings = np.load(file_path)
 print(settings.shape)
 # mu_c is the pixel count per settings that respect the condition mu_bit2 > mu_bit1 > mu_bit0 > 0  
 mu_c = np.zeros((features.shape[0]))
 fifty_c = np.zeros((features.shape[0]))
+
+print("setting shape=", (features.shape[0]))
 
 for i in range(features.shape[0]):
     mu_c[i] = np.count_nonzero((features[i,:,2,2]>features[i,:,1,2]) & (features[i,:,1,2]>features[i,:,0,2]) & (features[i,:,0,2]>0))
@@ -34,7 +36,21 @@ for i in range(features.shape[0]):
 bestSettingResult = np.max(mu_c)
 best_settings = np.argmax(mu_c)
 
-mu_c = mu_c.reshape(40, 40)
+top_10_indices = np.argsort(mu_c)[-10:][::-1]
+
+print(f"best setting index = {best_settings}, number of working pixel = {bestSettingResult}, setting = {settings[best_settings]}" )
+print(f"top 10 settings = {top_10_indices}" )
+print(f"top 10 settings = {mu_c[top_10_indices]}" )
+print(f"mu bit2 for 5 pixels  = {features[best_settings,:,2,2][0:5]}" )
+print(f"mu bit1 for 5 pixels  = {features[best_settings,:,1,2][0:5]}" )
+print(f"mu bit0 for 5 pixels  = {features[best_settings,:,0,2][0:5]}" )
+print(f"sigma bit2 for 5 pixels  = {features[best_settings,:,2,3][0:5]}" )
+print(f"sigma bit2 for 5 pixels  = {features[best_settings,:,1,3][0:5]}" )
+print(f"sigma bit2 for 5 pixels  = {features[best_settings,:,0,3][0:5]}" )
+
+mu_c = np.array(mu_c)
+print("mu_c = ", mu_c.shape) 
+# mu_c = mu_c.reshape(40, 40)
 print(settings.shape)
 testSample = settings[:,4]
 testDelay = settings[:,5]
@@ -50,7 +66,7 @@ plt.title('2D Plot of working settings')
 
 # Show the plot
 plt.colorbar(label='Values')  # Display color bar to indicate values
-plt.show()
+# plt.show()
 
 
 
