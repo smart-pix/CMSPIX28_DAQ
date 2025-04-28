@@ -100,7 +100,7 @@ if __name__ == "__main__":
     # handle input
     nPixPath = os.path.join(args.inFilePath, "nPix*")
     inPixList = list(sorted(glob.glob(nPixPath)))
-    inPixList = [i for i in inPixList if all(x not in i for x in ["plots"])][:2]
+    inPixList = [i for i in inPixList if all(x not in i for x in ["plots"])]
     print("Number of nPix paths: ", len(inPixList))
     
     # loop over pixels
