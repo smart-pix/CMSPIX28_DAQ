@@ -85,7 +85,6 @@ def analysis(config):
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
     data = np.stack(data, -1)
-    # print(data.shape)
 
     # no setting scan per bit then add a setting dimension
     if info["testType"] in ["Single", "MatrixNPix"]:
@@ -93,7 +92,7 @@ def analysis(config):
     elif info["testType"] in ["MatrixVTH"]:
         data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
     else:
-        print("Leaving data shape as it is")
+        print("Leaving data shape as it is for test type: ", info["testType"])
 
     # print("Expected dimensions (nSettings, nPixel, nBit, nVasicStep). Actual: ", data.shape)
 
