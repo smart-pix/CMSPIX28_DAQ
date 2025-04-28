@@ -24,12 +24,16 @@ grid = [
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
-parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
+parser.add_argument("-o", '--outDir', type=str, default=None, help='Output path')
 args = parser.parse_args()
 
 # input file
 inData = np.load(args.inFilePath)
 features = inData["features"]
+# expect that features is of shape (nsetting, npix, nbit, vasic step)
+# expect that for MatrixNPix test that there is only one setting
+print(features.shape)
+features = features[0]
 
 # get information
 info = inspectPath(os.path.dirname(args.inFilePath))
@@ -60,6 +64,7 @@ iB = 0
 for iB in range(3):
 
     bit = features[:,iB]
+    print(bit.shape)
     bit = bit[bit[:, 0].argsort()]
     
     # print out two values so the user can check by eye

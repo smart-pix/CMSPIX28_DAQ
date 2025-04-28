@@ -38,20 +38,21 @@ def analysis(config):
 
     # pick up configurations
     info = inspectPath(config["inPath"])
-    print(info)
+    # print(info)
 
     # get list of files
     files = list(glob.glob(os.path.join(config["inPath"], "*.np*")))
     # remove settings files
     files = [i for i in files if all(x not in i for x in ["steps", "settings"])]
+    print(config["inPath"], len(files))
 
     # one file per voltage
     v_asics = []
     data = []
 
     # loop over the files
-    for iF, inFileName in tqdm(enumerate(files), desc="Processing", unit="step"):
-
+    for iF, inFileName in enumerate(files): # tqdm(enumerate(files), desc="Processing", unit="step"):
+    
         v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".np")[0])
         v_asic *= VtomV # convert v_asic to mV from V
 
@@ -84,12 +85,17 @@ def analysis(config):
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
     data = np.stack(data, -1)
-    
-    # no setting scan per bit then add a setting dimension
-    if info["testType"] in ["MatrixNPix", "MatrixVTH", "Single"]:
-        data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
+    # print(data.shape)
 
-    print("Expected dimensions (nSettings, nPixel, nBit, nVasicStep). Actual: ", data.shape)
+    # no setting scan per bit then add a setting dimension
+    if info["testType"] in ["Single", "MatrixNPix"]:
+        data = data.reshape(1, 1, NBIT, data.shape[1])
+    elif info["testType"] in ["MatrixVTH"]:
+        data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
+    else:
+        print("Leaving data shape as it is")
+
+    # print("Expected dimensions (nSettings, nPixel, nBit, nVasicStep). Actual: ", data.shape)
 
     # filter threshold to analyse the data
     sCutHi = 0.8
@@ -116,6 +122,9 @@ def analysis(config):
 
                 # if pass threshold, then fit and get 50% values
                 if bit[0] < sCutLo and bit[-1] > sCutHi:
+                    
+                    # starting p0s for bit 0, 1, 2
+                    p0s = [[400, 40], [1200, 40], [2500, 40]]
 
                     # fit
                     try:
@@ -123,7 +132,7 @@ def analysis(config):
                             f=norm.cdf,
                             xdata=nelectron_asics,
                             ydata=bit,
-                            p0=[600,30],
+                            p0=p0s[iB],
                             bounds=((-np.inf,0),(np.inf,np.inf))
                         )
                         mean_, std_ = fitResult[0]
@@ -184,7 +193,6 @@ if __name__ == "__main__":
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
-    print(inPathList)
 
     # Sort the list based on the number in the final directory
     try:
@@ -217,9 +225,9 @@ if __name__ == "__main__":
     for i,j,k in results:
         features.append(i)
         scurve.append(k)
-    features = np.concatenate(features, axis=0)
+    features = np.concatenate(features, axis=1)
     nelectron_asics = np.array(nelectron_asics)
-    scurve = np.concatenate(scurve, axis=0)
+    scurve = np.concatenate(scurve, axis=1)
 
     # print out
     print("features shape (nSettings, nPixel, nBit, nFeatures): ", features.shape)

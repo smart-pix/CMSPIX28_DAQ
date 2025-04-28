@@ -42,6 +42,8 @@ base_colors = {
     2: plt.cm.Blues(np.linspace(0.1, 1, scurve.shape[1]))
 }
 print(base_colors, scurve.shape)
+
+# loop over the settings
 for iS in range(scurve.shape[0]):
 
     # set up figure
@@ -50,7 +52,10 @@ for iS in range(scurve.shape[0]):
     ax.set_ylabel("Fraction of Samples", fontsize=18, labelpad=10)
     ax.set_ylim(0, 1.24)
 
+    # loop over the pixels
     for iP in range(scurve.shape[1]):
+
+        # loop over the bits
         for iB in range(scurve.shape[2]):
             # settings
             color = None
