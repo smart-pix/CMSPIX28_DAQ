@@ -146,8 +146,8 @@ if __name__ == "__main__":
     outPdfPaths = []
     mu_cs = []
     for iP, inPixPath in enumerate(inPixList):
-        pixNum = int(os.path.basename(inPixPath).strip("nPix"))
-        temp = np.expand_dims(features[:,pixNum], axis=1)
+        # pixNum = int(os.path.basename(inPixPath).strip("nPix"))
+        temp = np.expand_dims(features[:,iP], axis=1) # features[:,pixNum]
         outPdfPath, testDelay, testSample, mu_c = analyze(temp, inPixPath)
         outPdfPaths.append(outPdfPath)
         mu_cs.append(mu_c)
