@@ -14,12 +14,55 @@ from PyPDF2 import PdfMerger
 from SmartPixStyle import *
 from Analyze import inspectPath
 
+def mucPlot(inPixPath, testDelay, testSample, mu_c, nWorkingSetting, cbTicks=None, cbLabel='Working Setting'):
+
+    # get information
+    info = inspectPath(inPixPath)
+    
+    # if no npix then set
+    if "nPix" in info.keys():
+        info["nPix"] = int(info["nPix"])
+    else:
+        info["nPix"] = "ALL"
+        
+    # plot
+    fig, ax = plt.subplots()
+    sc = ax.scatter(testDelay, testSample, c=mu_c, cmap='viridis', edgecolor='black', marker="s") # s=40
+    ax.set_xlabel('cfg_test_delay', fontsize=18, labelpad=10)
+    ax.set_ylabel('cfg_test_sample', fontsize=18, labelpad=10)
+    ax.set_xlim(min(testDelay)-1, max(testDelay)+1)
+    ax.set_ylim(min(testSample)-1, max(testSample)+1)
+    ax.set_aspect('auto')
+    cb = fig.colorbar(sc, ax=ax)
+    cb.set_label(cbLabel, fontsize=18)
+    if cbTicks:
+        cb.set_ticks(cbTicks)
+    fig.tight_layout()
+
+    # set ticks
+    SetTicks(ax, nbinsMajor=10)
+
+    # add label and text
+    SmartPixLabel(ax, 0, 1.005, size=15)
+    ax.text(1, 1.005, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}, Pixel {info['nPix']}, Working Settings {nWorkingSetting}", transform=ax.transAxes, fontsize=10, color="black", ha='right', va='bottom')
+
+    # get output directory
+    outDir = os.path.join(inPixPath, "plots")
+    os.makedirs(outDir, exist_ok=True)
+
+    # save fig
+    outFileName = os.path.join(outDir, f"SCurve_ChipVersion{int(info['ChipVersion'])}_ChipID{int(info['ChipID'])}_SuperPixel{int(info['SuperPix'])}_nPix{info['nPix']}.pdf")
+    print(f"Saving file to {outFileName}")
+    plt.savefig(outFileName, bbox_inches='tight')
+    
+    return outFileName
+
 # takes in the features and path with individual pixel data
 def analyze(features, inPixPath):
     
     # get information
     info = inspectPath(inPixPath)
-    print(info)
+    # print(info)
 
     # load the setting file
     settingsPath = os.path.join(inPixPath, "settings.npy")
@@ -41,7 +84,7 @@ def analyze(features, inPixPath):
     best_settings = np.argmax(mu_c)
     top_10_indices = np.argsort(mu_c)[-10:][::-1]
     nWorkingSetting = np.count_nonzero(mu_c>0)
-    
+
     # print(nWorkingSetting)
     # print(f"best setting index = {best_settings}, number of working pixel = {bestSettingResult}, setting = {settings[best_settings]}" )
     # print(f"top 10 settings = {top_10_indices}" )
@@ -60,37 +103,10 @@ def analyze(features, inPixPath):
     # convert to int
     testSample = np.vectorize(lambda x: int(x, 16))(testSample)
     testDelay = np.vectorize(lambda x: int(x, 16))(testDelay)
-
-    # plot
-    fig, ax = plt.subplots()
-    sc = ax.scatter(testDelay, testSample, c=mu_c, cmap='viridis', edgecolor='black', marker="s") # s=40
-    ax.set_xlabel('cfg_test_delay', fontsize=18, labelpad=10)
-    ax.set_ylabel('cfg_test_sample', fontsize=18, labelpad=10)
-    ax.set_xlim(min(testDelay)-1, max(testDelay)+1)
-    ax.set_ylim(min(testSample)-1, max(testSample)+1)
-    ax.set_aspect('auto')
-    cb = fig.colorbar(sc, ax=ax)
-    cb.set_label('Working Setting', fontsize=18)
-    cb.set_ticks([0, 1])
-    fig.tight_layout()
     
-    # set ticks
-    SetTicks(ax, nbinsMajor=10)
-
-    # add label and text
-    SmartPixLabel(ax, 0, 1.005, size=15)
-    ax.text(1, 1.005, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}, Pixel {int(info['nPix'])}, Working Settings {nWorkingSetting}", transform=ax.transAxes, fontsize=10, color="black", ha='right', va='bottom')
-
-    # get output directory
-    outDir = os.path.join(inPixPath, "plots")
-    os.makedirs(outDir, exist_ok=True)
-
-    # save fig
-    outFileName = os.path.join(outDir, f"SCurve_ChipVersion{int(info['ChipVersion'])}_ChipID{int(info['ChipID'])}_SuperPixel{int(info['SuperPix'])}_nPix{int(info['nPix'])}.pdf")
-    print(f"Saving file to {outFileName}")
-    plt.savefig(outFileName, bbox_inches='tight')
-
-    return outFileName
+    # plot and return
+    outFileName = mucPlot(inPixPath, testDelay, testSample, mu_c, nWorkingSetting, cbTicks=[0,1])
+    return outFileName, testDelay, testSample, mu_c
 
 def concatenate_pdfs(pdf_paths, output_path):
     merger = PdfMerger()
@@ -128,11 +144,18 @@ if __name__ == "__main__":
     # loop over pixels
     nPixels = scurve.shape[1]
     outPdfPaths = []
+    mu_cs = []
     for iP, inPixPath in enumerate(inPixList):
         pixNum = int(os.path.basename(inPixPath).strip("nPix"))
         temp = np.expand_dims(features[:,pixNum], axis=1)
-        outPdfPath = analyze(temp, inPixPath)
+        outPdfPath, testDelay, testSample, mu_c = analyze(temp, inPixPath)
         outPdfPaths.append(outPdfPath)
+        mu_cs.append(mu_c)
+
+    # sum mu_c's
+    mu_cs = np.stack(mu_cs, axis=1).sum(axis=1)
+    nWorkingSetting = np.count_nonzero(mu_cs == len(inPixList))
+    mucPlot(args.inFilePath, testDelay, testSample, mu_cs, nWorkingSetting, cbTicks=[0, 64, 128, 192, 256], cbLabel="Working Pixels per Setting")
 
     # append all pdfs into one
     if args.combine:
