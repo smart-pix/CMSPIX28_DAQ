@@ -44,6 +44,8 @@ def analysis(config):
     files = list(glob.glob(os.path.join(config["inPath"], "*.np*")))
     # remove settings files
     files = [i for i in files if all(x not in i for x in ["steps", "settings"])]
+    # sort
+    files = sorted(files)
     print(config["inPath"], len(files))
 
     # one file per voltage
@@ -51,7 +53,7 @@ def analysis(config):
     data = []
 
     # loop over the files
-    for iF, inFileName in enumerate(files): # tqdm(enumerate(files), desc="Processing", unit="step"):
+    for iF, inFileName in enumerate(files): #tqdm(enumerate(files), desc="Processing", unit="step"):
     
         v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".np")[0])
         v_asic *= VtomV # convert v_asic to mV from V
@@ -84,6 +86,8 @@ def analysis(config):
     # convert
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
+    print(v_asics)
+    print(nelectron_asics)
     data = np.stack(data, -1)
 
     # no setting scan per bit then add a setting dimension
@@ -119,9 +123,12 @@ def analysis(config):
                 # temp default values
                 fiftyPerc_, mean_, std_ = -999, -999, -999
 
-                # if pass threshold, then fit and get 50% values
-                if bit[0] < sCutLo and bit[-1] > sCutHi:
-                    
+                # check if good bit. if pass threshold, then fit and get 50% values
+                goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
+                
+                # fit and get 50% values
+                if goodBit:
+            
                     # starting p0s for bit 0, 1, 2
                     p0s = [[400, 40], [1200, 40], [2500, 40]]
 
@@ -142,6 +149,8 @@ def analysis(config):
                     # pick up 50% values
                     idx_closest = np.argmin(np.abs(bit - 0.5))
                     fiftyPerc_ = nelectron_asics[idx_closest]
+                else:
+                    print("Did not pass threshold cuts: ", bit[0], bit[-1], sCutLo, sCutHi)
 
                 # append
                 t_ = []
@@ -192,7 +201,7 @@ if __name__ == "__main__":
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
-
+    
     # Sort the list based on the number in the final directory
     try:
         def extract_number(path):
@@ -209,10 +218,10 @@ if __name__ == "__main__":
             "inPath": inPath,
         })
 
-    # launch jobs
+    # launch jobs 
     if args.ncpu == 1:
         results = []
-        for conf in confs:
+        for conf in tqdm(confs, desc="Processing", unit="step"):
             results.append(analysis(conf))
     else:
         results = mp.Pool(args.ncpu).map(analysis, confs)
