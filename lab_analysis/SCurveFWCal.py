@@ -30,8 +30,10 @@ def mucPlot(inPixPath, testDelay, testSample, mu_c, nWorkingSetting, cbTicks=Non
     sc = ax.scatter(testDelay, testSample, c=mu_c, cmap='viridis', edgecolor='black', marker="s") # s=40
     ax.set_xlabel('cfg_test_delay', fontsize=18, labelpad=10)
     ax.set_ylabel('cfg_test_sample', fontsize=18, labelpad=10)
-    ax.set_xlim(min(testDelay)-1, max(testDelay)+1)
-    ax.set_ylim(min(testSample)-1, max(testSample)+1)
+    # ax.set_xlim(min(testDelay)-1, max(testDelay)+1)
+    # ax.set_ylim(min(testSample)-1, max(testSample)+1)
+    ax.set_xlim(0, 41)
+    ax.set_ylim(0, 41)
     ax.set_aspect('auto')
     cb = fig.colorbar(sc, ax=ax)
     cb.set_label(cbLabel, fontsize=18)
@@ -51,7 +53,7 @@ def mucPlot(inPixPath, testDelay, testSample, mu_c, nWorkingSetting, cbTicks=Non
     os.makedirs(outDir, exist_ok=True)
 
     # save fig
-    outFileName = os.path.join(outDir, f"SCurve_ChipVersion{int(info['ChipVersion'])}_ChipID{int(info['ChipID'])}_SuperPixel{int(info['SuperPix'])}_nPix{info['nPix']}.pdf")
+    outFileName = os.path.join(outDir, f"SCurve_ChipVersion{int(info['ChipVersion'])}_ChipID{int(info['ChipID'])}_SuperPixel{int(info['SuperPix'])}_nPix{info['nPix']}_fiftyPerc.pdf")
     print(f"Saving file to {outFileName}")
     plt.savefig(outFileName, bbox_inches='tight')
     
@@ -64,8 +66,12 @@ def analyze(features, inPixPath):
     info = inspectPath(inPixPath)
     # print(info)
 
-    # load the setting file
+    # check the pix path for setting
     settingsPath = os.path.join(inPixPath, "settings.npy")
+    # if it doesn't exist then setting will be in above
+    if not os.path.exists(settingsPath):
+        settingsPath = os.path.join(os.path.dirname(inPixPath), "settings.npy")
+    # load settings
     settings = np.load(settingsPath)
 
     # mu_c is the pixel count per settings that respect the condition mu_bit2 > mu_bit1 > mu_bit0 > 0
@@ -79,11 +85,17 @@ def analyze(features, inPixPath):
     for i in range(features.shape[0]):
         mu_c[i] = int((features[i,iP,2,muIdx] > 1.5*features[i,iP,1,muIdx]) & (features[i,iP,1,muIdx] > 1.5*features[i,iP,0,muIdx]) & (features[i,iP,0,muIdx] > 0))
         fifty_c[i] = int((features[i,iP,2,fIdx] > 1.5*features[i,iP,1,fIdx]) & (features[i,iP,1,fIdx] > 1.5*features[i,iP,0,fIdx]) & (features[i,iP,0,fIdx] > 0))
-        
-    bestSettingResult = np.max(mu_c)
-    best_settings = np.argmax(mu_c)
-    top_10_indices = np.argsort(mu_c)[-10:][::-1]
-    nWorkingSetting = np.count_nonzero(mu_c>0)
+
+    # best settings after mu_c
+    # bestSettingResult = np.max(mu_c)
+    # best_settings = np.argmax(mu_c)
+    # top_10_indices = np.argsort(mu_c)[-10:][::-1]
+    # nWorkingSetting = np.count_nonzero(mu_c>0)
+
+    bestSettingResult = np.max(fifty_c)
+    best_settings = np.argmax(fifty_c)
+    top_10_indices = np.argsort(fifty_c)[-10:][::-1]
+    nWorkingSetting = np.count_nonzero(fifty_c>0)
 
     # print(nWorkingSetting)
     # print(f"best setting index = {best_settings}, number of working pixel = {bestSettingResult}, setting = {settings[best_settings]}" )
@@ -97,6 +109,7 @@ def analyze(features, inPixPath):
     # print(f"sigma bit2 for 5 pixels  = {features[best_settings,:,0,3][0:5]}" )
     
     mu_c = np.array(mu_c)
+    fifty_c = np.array(fifty_c)
     testSample = settings[:,4]
     testDelay = settings[:,5]
     
@@ -105,8 +118,8 @@ def analyze(features, inPixPath):
     testDelay = np.vectorize(lambda x: int(x, 16))(testDelay)
     
     # plot and return
-    outFileName = mucPlot(inPixPath, testDelay, testSample, mu_c, nWorkingSetting, cbTicks=[0,1])
-    return outFileName, testDelay, testSample, mu_c
+    outFileName = mucPlot(inPixPath, testDelay, testSample, fifty_c, nWorkingSetting, cbTicks=[0,1]) # mu_c
+    return outFileName, testDelay, testSample, fifty_c
 
 def concatenate_pdfs(pdf_paths, output_path):
     merger = PdfMerger()
@@ -125,7 +138,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # get file information
-    info = inspectPath(os.path.dirname(args.inFilePath))
+    print(os.path.dirname(args.inFilePath))
+    # info = inspectPath(os.path.dirname(args.inFilePath))
+    info = inspectPath(args.inFilePath)
     print(info)
     
     # scurve data
@@ -140,7 +155,12 @@ if __name__ == "__main__":
     inPixList = list(sorted(glob.glob(nPixPath), key=lambda p: int(re.search(r'nPix(\d+)', p).group(1))))
     inPixList = [i for i in inPixList if all(x not in i for x in ["plots"])]
     print("Number of nPix paths: ", len(inPixList))
-    
+
+    # if no pixel paths then need to create them
+    if len(inPixList) != scurve.shape[1]:
+        print("Looks like a MatrixCalibration test where there's no nPix folders. Creating them")
+        inPixList = [os.path.join(args.inFilePath, f"nPix{i}") for i in range(scurve.shape[1])]
+
     # loop over pixels
     nPixels = scurve.shape[1]
     outPdfPaths = []
