@@ -47,7 +47,7 @@ def analysis(config):
     # sort
     files = sorted(files)
     print(config["inPath"], len(files))
-
+    
     # one file per voltage
     v_asics = []
     data = []
@@ -73,9 +73,12 @@ def analysis(config):
         # compute fraction with 1's
         if info["testType"] == "MatrixCalibration":
             frac = x.sum(2) / x.shape[2] # sample dimension is 2
-            frac = np.transpose(frac, (0,2,1)) # pixel, bit, sample setting
+            # frac = np.transpose(frac, (0,2,1)) # pixel, bit, sample setting
+            frac = np.transpose(frac, (1,0,2)) # sample setting, pixel, bit
             # frac = frac.reshape(frac.shape[0]*frac.shape[1], -1)
-            frac = frac.reshape(-1, frac.shape[0], frac.shape[1])
+            # frac = frac.reshape(-1, frac.shape[0], frac.shape[1])
+            # print(frac.shape)
+            # exit()
         else:
             frac = x.sum(0)/x.shape[0]
         # save to lists
@@ -86,8 +89,6 @@ def analysis(config):
     # convert
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
-    print(v_asics)
-    print(nelectron_asics)
     data = np.stack(data, -1)
 
     # no setting scan per bit then add a setting dimension
@@ -98,7 +99,7 @@ def analysis(config):
     else:
         print("Leaving data shape as it is for test type: ", info["testType"])
 
-    # print("Expected dimensions (nSettings, nPixel, nBit, nVasicStep). Actual: ", data.shape)
+    print("Expected dimensions (nSettings, nPixel, nBit, nVasicStep). Actual: ", data.shape)
 
     # filter threshold to analyse the data
     sCutHi = 0.8
@@ -108,7 +109,7 @@ def analysis(config):
     # loop over bits
     features = []
     # loop over settings
-    for iS in range(data.shape[0]):
+    for iS in tqdm(range(data.shape[0]), desc="Processing", unit="step"): # range(data.shape[0]):
         
         # loop over pixels
         temp_pixel = []
@@ -124,33 +125,41 @@ def analysis(config):
                 fiftyPerc_, mean_, std_ = -999, -999, -999
 
                 # check if good bit. if pass threshold, then fit and get 50% values
-                goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
-                
+                # goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
+                goodBit = bit[-1] > sCutHi
+
                 # fit and get 50% values
                 if goodBit:
             
                     # starting p0s for bit 0, 1, 2
                     p0s = [[400, 40], [1200, 40], [2500, 40]]
 
-                    # fit
-                    try:
-                        fitResult=curve_fit(
-                            f=norm.cdf,
-                            xdata=nelectron_asics,
-                            ydata=bit,
-                            p0=p0s[iB],
-                            bounds=((-np.inf,0),(np.inf,np.inf))
-                        )
-                        mean_, std_ = fitResult[0]
-                    except:
-                        print("fit failed")
-                        mean_, std_ = -1, -1
+                    # # fit
+                    # try:
+                    #     fitResult=curve_fit(
+                    #         f=norm.cdf,
+                    #         xdata=nelectron_asics,
+                    #         ydata=bit,
+                    #         p0=p0s[iB],
+                    #         bounds=((-np.inf,0),(np.inf,np.inf))
+                    #     )
+                    #     mean_, std_ = fitResult[0]
+                    # except:
+                    #     print("fit failed")
+                    #     mean_, std_ = -1, -1
 
                     # pick up 50% values
                     idx_closest = np.argmin(np.abs(bit - 0.5))
                     fiftyPerc_ = nelectron_asics[idx_closest]
-                else:
-                    print("Did not pass threshold cuts: ", bit[0], bit[-1], sCutLo, sCutHi)
+
+                    # pick up points closest to 0.1 and 0.9
+                    idx1 = np.argmin(np.abs(bit - 0.1))
+                    idx9 = np.argmin(np.abs(bit - 0.9))
+                    # print(idx1, nelectron_asics[idx1], idx9, nelectron_asics[idx9])
+                    fiftyPerc_ = (nelectron_asics[idx9] + nelectron_asics[idx1])/2
+
+                # else:
+                #    print("Did not pass threshold cuts: ", bit[0], bit[-1], sCutLo, sCutHi)
 
                 # append
                 t_ = []
@@ -201,7 +210,8 @@ if __name__ == "__main__":
     # handle input
     inPathList = list(sorted(glob.glob(args.inFilePath)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
-    
+    print(inPathList)
+
     # Sort the list based on the number in the final directory
     try:
         def extract_number(path):
