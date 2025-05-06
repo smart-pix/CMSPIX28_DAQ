@@ -66,6 +66,7 @@ for iS in range(scurve.shape[0]):
                 color = base_colors[iB][iP]
             elif info["testType"] == "MatrixVTH":
                 label = ""
+                color = bit_colors[iB]
             # plot
             # print(iS, iP, iB, scurve[iS, iP, iB])
             ax.plot(nelectron_asics, scurve[iS, iP, iB], color=color, label=label) #, marker='o', ms=5)

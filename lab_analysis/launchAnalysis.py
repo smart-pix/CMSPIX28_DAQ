@@ -31,5 +31,7 @@ if __name__ == "__main__":
             if "MatrixNPix" in folder:
                 subprocess.run(["python", "MatrixNPix.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
                 subprocess.run(["python", "MatrixNPix2D.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
+            if "MatrixVTH" in folder:
+                subprocess.run(["python", "MatrixVTH.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error processing {folder}: {e}")

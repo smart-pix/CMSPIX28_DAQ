@@ -91,12 +91,13 @@ def analysis(config):
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
     data = np.stack(data, -1)
-
+    print(data.shape)
     # no setting scan per bit then add a setting dimension
     if info["testType"] in ["Single", "MatrixNPix"]:
         data = data.reshape(1, 1, NBIT, data.shape[1])
     elif info["testType"] in ["MatrixVTH"]:
-        data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
+        # data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
+        data = data.reshape(1, 1, NBIT, data.shape[1])
     else:
         print("Leaving data shape as it is for test type: ", info["testType"])
 
@@ -127,6 +128,7 @@ def analysis(config):
 
                 # check if good bit. if pass threshold, then fit and get 50% values
                 # goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
+                # goodBit = bit[0] < sCutLo and bit[-1] > sCutHi
                 goodBit = bit[-1] > sCutHi
 
                 # fit and get 50% values
@@ -212,6 +214,8 @@ if __name__ == "__main__":
     inPathList = args.inFilePath
     if "MatrixNPix" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "nPix*")
+    elif "MatrixVTH" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "VTH*")
     inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
     print(inPathList)

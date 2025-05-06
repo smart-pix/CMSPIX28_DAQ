@@ -83,64 +83,83 @@ def angleFromSlope(m, ax=None):
 
 # make plots
 for name, config in pltConfig.items():
+    
+    # no good values then skip
+    if np.all(features[:,:,:,config["idx"]] == -999):
+        print(f"All values are -999 for feature {config['idx']}. Skipping plotting.")
+        continue
 
     # set up figure
-    fig, ax = plt.subplots(figsize=(6,6))
-    ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
-    ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
+    # fig, ax = plt.subplots(figsize=(6,6))
+    # ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
+    # ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
 
-    # set y limit
-    maxValue = np.max(features[:,:,config["idx"]])
-    ylimMax = 1.35 * maxValue
-    ax.set_ylim(0, ylimMax)
+    # # set y limit
+    # maxValue = np.max(features[:,:,config["idx"]])
+    # ylimMax = 1.35 * maxValue
+    # ax.set_ylim(0, ylimMax)
 
     # plot
     color = ["blue", "red", "orange"]
-    for iB in range(3):
-        # get vth per bit
-        x_ = features[:,iB][:,0]
-        if config["vthPerBit"]:
-            x_ = vth_to_vthPerBit(x_, iB)
-        # get y values
-        y_ = features[:,iB][:,config["idx"]]
-        mask = y_ > 0
-        ax.plot(x_[mask], y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
+    for iS in range(features.shape[0]):
         
-        # linear fit
-        if config["fit"] == "linear":
-            popt, pcov = curve_fit(linear_func, x_[mask], y_[mask])
-            a, b = popt
-            CvG = 1/a*1000000
-            fit_label = f'y = {a:.2f}x {"-" if b < 0 else "+"} {abs(b):.2f}'
-            fit_label = f'CvG = {CvG:.2f}uV/e-'
-            ax.plot(x_[mask], linear_func(x_[mask], *popt), linestyle='--', color = color[iB], alpha=0.5)
-            # Calculate the angle of the line for rotation
+        # set up figure
+        fig, ax = plt.subplots(figsize=(6,6))
+        ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
+        ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
+        
+        # set y limit
+        maxValue = np.max(features[:,:,:,config["idx"]])
+        ylimMax = 1.35 * maxValue
+        ax.set_ylim(0, ylimMax)
+
+        for iB in range(3):
+            # get vth per bit
+            x_ = features[iS:,:,iB,0].flatten()
             if config["vthPerBit"]:
-                x_text = 0.55
-                y_text = 0.05*(iB+1)
-                ax.text(x_text, y_text, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', transform=ax.transAxes, alpha=0.5)
-            else:
-                angle = 0 if config["vthPerBit"] else angleFromSlope(a, ax)
-                x_text = x_[mask][0] + (x_[mask][-1] - x_[mask][0]) / 4
-                y_text = linear_func(x_text, *popt)
-                y_text += 0.1*y_text
-                # print text label
-                ax.text(x_text, y_text, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', rotation=angle, alpha=0.5)
+                x_ = vth_to_vthPerBit(x_, iB)
+            # get y values
+            y_ = features[iS:,:,iB,config["idx"]].flatten()
+            mask = y_ > 0
+            # plot
+            ax.plot(x_[mask], y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
+        
+            # linear fit
+            if config["fit"] == "linear":
+                popt, pcov = curve_fit(linear_func, x_[mask], y_[mask])
+                a, b = popt
+                CvG = 1/a*1000000
+                fit_label = f'y = {a:.2f}x {"-" if b < 0 else "+"} {abs(b):.2f}'
+                fit_label = f'CvG = {CvG:.2f}uV/e-'
+                ax.plot(x_[mask], linear_func(x_[mask], *popt), linestyle='--', color = color[iB], alpha=0.5)
+                # Calculate the angle of the line for rotation
+                if config["vthPerBit"]:
+                    x_text = 0.55
+                    y_text = 0.05*(iB+1)
+                    ax.text(x_text, y_text, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', transform=ax.transAxes, alpha=0.5)
+                else:
+                    angle = 0 if config["vthPerBit"] else angleFromSlope(a, ax)
+                    x_text = x_[mask][0] + (x_[mask][-1] - x_[mask][0]) / 4
+                    y_text = linear_func(x_text, *popt)
+                    y_text += 0.1*y_text
+                    # print text label
+                    ax.text(x_text, y_text, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', rotation=angle, alpha=0.5)
 
-    # make legend
-    legend = ax.legend(fontsize=15, loc = "upper right") #bbox_to_anchor=(0.03, 0.85), loc='upper left')
-    for text in legend.get_texts():
-        text.set_fontweight('bold')
+        # make legend
+        legend = ax.legend(fontsize=15, loc = "upper right") #bbox_to_anchor=(0.03, 0.85), loc='upper left')
+        for text in legend.get_texts():
+            text.set_fontweight('bold')
 
-    # set ticks
-    SetTicks(ax)
+        # set ticks
+        SetTicks(ax)
 
-    # add label and text
-    SmartPixLabel(ax, 0.05, 0.9, size=22)
-    ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        # add label and text
+        SmartPixLabel(ax, 0.05, 0.9, size=22)
+        ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        ax.text(0.05, 0.80, f"Pixel {int(info['nPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
 
-    # save fig
-    outFileName = os.path.join(outDir, f"MatrixVTH_{name}.pdf")
-    print(f"Saving file to {outFileName}")
-    plt.savefig(outFileName, bbox_inches='tight')
-    plt.close()
+        # save fig
+        outFileName = os.path.join(outDir, f"MatrixVTH_{name}_Setting{iS}_Pixel{int(info['nPix'])}.pdf")
+        print(f"Saving file to {outFileName}")
+        plt.savefig(outFileName, bbox_inches='tight')
+        plt.close()
