@@ -47,14 +47,15 @@ def analysis(config):
     # sort
     files = sorted(files)
     print(config["inPath"], len(files))
-    
+
     # one file per voltage
     v_asics = []
     data = []
 
     # loop over the files
     for iF, inFileName in enumerate(files): #tqdm(enumerate(files), desc="Processing", unit="step"):
-    
+        # print(iF, inFileName)
+
         v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".np")[0])
         v_asic *= VtomV # convert v_asic to mV from V
 
@@ -208,7 +209,10 @@ if __name__ == "__main__":
     # os.chmod(outDir, mode=0o777)
 
     # handle input
-    inPathList = list(sorted(glob.glob(args.inFilePath)))
+    inPathList = args.inFilePath
+    if "MatrixNPix" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "nPix*")
+    inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
     print(inPathList)
 

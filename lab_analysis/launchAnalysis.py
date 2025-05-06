@@ -1,6 +1,7 @@
 import glob
 import subprocess
 import argparse
+import os
 
 if __name__ == "__main__":
 
@@ -24,6 +25,11 @@ if __name__ == "__main__":
         print(f"Processing folder: {folder}")
         try:
             subprocess.run(["python", "Analyze.py", "-i", folder], check=True)
-            subprocess.run(["python", "SCurveFWCal.py", "-i", folder], check=True)
+            subprocess.run(["python", "SCurve.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
+            if "MatrixCalibration" in folder:
+                subprocess.run(["python", "SCurveFWCal.py", "-i", folder, "--combine"], check=True)
+            if "MatrixNPix" in folder:
+                subprocess.run(["python", "MatrixNPix.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
+                subprocess.run(["python", "MatrixNPix2D.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error processing {folder}: {e}")

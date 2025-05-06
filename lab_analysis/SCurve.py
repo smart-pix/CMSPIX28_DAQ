@@ -44,7 +44,7 @@ base_colors = {
 print(base_colors, scurve.shape)
 
 # loop over the settings
-for iS in range(535, scurve.shape[0]):
+for iS in range(scurve.shape[0]):
 
     # set up figure
     fig, ax = plt.subplots(figsize=(6,6))
@@ -68,7 +68,7 @@ for iS in range(535, scurve.shape[0]):
                 label = ""
             # plot
             # print(iS, iP, iB, scurve[iS, iP, iB])
-            ax.plot(nelectron_asics, scurve[iS, iP, iB], color=color, label=label, marker='o')
+            ax.plot(nelectron_asics, scurve[iS, iP, iB], color=color, label=label, marker='o', ms=5)
             # print(f"Pixel {iP}, Bit {iB} (50%, mu, sigma): ", features[iS, iP, iB][1:])
 
     # add legend
