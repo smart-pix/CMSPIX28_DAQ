@@ -96,9 +96,12 @@ for name, config in pltConfig.items():
             # gaussian fit
             if config["p0s"] is not None:
                 # bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-                popt, _ = curve_fit(gaussian, bin_centers, hist_vals, p0=config["p0s"][iB]) # fit gaussian
+                # Bounds: amplitude and mean unbounded, std_dev constrained to be > 0
+                # bounds = ([0, -np.inf, 0], [np.inf, np.inf, np.inf])  # std_dev 0 to infinite
+                popt, _ = curve_fit(gaussian, bin_centers, hist_vals, p0=config["p0s"][iB]) # , bounds=bounds) # fit gaussian
                 y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
                 amplitude, mean , std_dev = popt
+                std_dev = abs(std_dev) # from the gaussian the reported value could be +/- but just report positive
                 ax.plot(bin_centers, y_fit, color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
         
             # add legend

@@ -10,6 +10,7 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--inPath', required=True, help='Path to input files')
     # parser.add_argument('-j', '--ncpu', type=int, default=1, help='Number of CPUs to use')
     # parser.add_argument('-o', '--outDir', default=None, help="Output directory. If not provided then use directory of inFilePath")
+    parser.add_argument('--doFit', action="store_true", help="Run the S-cruve fitting. Note the analysis will take significantly longer.")
     args = parser.parse_args()
 
     # # Glob pattern for matching folders
@@ -24,7 +25,10 @@ if __name__ == "__main__":
     for folder in folders:
         print(f"Processing folder: {folder}")
         try:
-            subprocess.run(["python", "Analyze.py", "-i", folder], check=True)
+            Analyze = ["python", "Analyze.py", "-i", folder]
+            if args.doFit:
+                Analyze.append("--doFit")
+            subprocess.run(Analyze, check=True)
             subprocess.run(["python", "SCurve.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
             if "MatrixCalibration" in folder:
                 subprocess.run(["python", "SCurveFWCal.py", "-i", folder, "--combine"], check=True)

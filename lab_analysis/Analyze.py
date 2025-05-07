@@ -137,19 +137,20 @@ def analysis(config):
                     # starting p0s for bit 0, 1, 2
                     p0s = [[400, 40], [1200, 40], [2500, 40]]
 
-                    # # fit
-                    # try:
-                    #     fitResult=curve_fit(
-                    #         f=norm.cdf,
-                    #         xdata=nelectron_asics,
-                    #         ydata=bit,
-                    #         p0=p0s[iB],
-                    #         bounds=((-np.inf,0),(np.inf,np.inf))
-                    #     )
-                    #     mean_, std_ = fitResult[0]
-                    # except:
-                    #     print("fit failed")
-                    #     mean_, std_ = -1, -1
+                    # fit
+                    if config["doFit"]:
+                        try:
+                            fitResult=curve_fit(
+                                f=norm.cdf,
+                                xdata=nelectron_asics,
+                                ydata=bit,
+                                p0=p0s[iB],
+                                bounds=((-np.inf,0),(np.inf,np.inf))
+                            )
+                            mean_, std_ = fitResult[0]
+                        except:
+                            print("fit failed")
+                            mean_, std_ = -1, -1
 
                     # pick up 50% values
                     idx_closest = np.argmin(np.abs(bit - 0.5))
@@ -195,6 +196,7 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--inFilePath', required=True, help='Path to input files')
     parser.add_argument('-j', '--ncpu', type=int, default=1, help='Number of CPUs to use')
     parser.add_argument('-o', '--outDir', default=None, help="Output directory. If not provided then use directory of inFilePath")
+    parser.add_argument('--doFit', action="store_true", help="Run the S-cruve fitting. Note the analysis will take significantly longer.")
     args = parser.parse_args()
     
     # outdir
@@ -234,6 +236,7 @@ if __name__ == "__main__":
     for inPath in inPathList:
         confs.append({
             "inPath": inPath,
+            "doFit" : args.doFit
         })
 
     # launch jobs 
