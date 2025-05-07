@@ -45,7 +45,6 @@ pltConfig["nelectron_asic_50perc_perBit"] = {
     "xlabel": r"S-Curve Half Max [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
-    # "binConfigs": [[0, 4500, 226], [0, 4500, 226], [0, 4500, 226]], # use this if you want all to have the same range
     "p0s": [[50, 400, 100], [50, 1300, 100], [50, 3300, 100]], # bit 0, bit 1, bit 2
     "fitRange" : [[250,550], [1100, 1600], [3000, 3500]],
     "ylim": [0, 35],
@@ -56,6 +55,7 @@ pltConfig["scurve_mean_perBit"] = {
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
     "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
+    "fitRange" : [[250,550], [1100, 1600], [3000, 3500]],
     "ylim": [0, 30],
     "idx" : 2,
 }
@@ -64,6 +64,7 @@ pltConfig["scurve_std_perBit"] = {
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 400, 41], [0, 400, 41], [0, 400, 41]], # bit 0, bit 1, bit 2
     "p0s": [[50, 50, 50], [50, 50, 50], [50, 50, 50]], # bit 0, bit 1, bit 2
+    "fitRange" : [[20, 80], [20, 80], [20, 80]],
     "ylim": [0, 149],
     "idx" : 3,
 }
@@ -101,23 +102,22 @@ for name, config in pltConfig.items():
 
             # gaussian fit
             if config["p0s"] is not None:
-                # bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-                # Bounds: amplitude and mean unbounded, std_dev constrained to be > 0
-                # bounds = ([0, -np.inf, 0], [np.inf, np.inf, np.inf])  # std_dev 0 to infinite
                 
                 # set amplitude to max of hist values
                 p0 = config["p0s"][iB]
                 p0[0] = max(hist_vals)
-
+                # restrict fit to certain region
+                mask = bin_centers != np.nan
                 if "fitRange" in config.keys():
-                    mask = (bin_centers > config["fitRange"][0]) & (bin_centers < config["fitRange"][1])
-                    popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
-                else:
-                    popt, _ = curve_fit(gaussian, bin_centers, hist_vals, p0=p0) # config["p0s"][iB]) # , bounds=bounds) # fit gaussian
+                    print("Only fitting in the range: ", config["fitRange"][iB])
+                    mask = ((bin_centers > config["fitRange"][iB][0]) & (bin_centers < config["fitRange"][iB][1]))                    
+                # perform fit
+                popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
+                # evaluate fit and plot
                 y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
                 amplitude, mean , std_dev = popt
                 std_dev = abs(std_dev) # from the gaussian the reported value could be +/- but just report positive
-                ax.plot(bin_centers, y_fit, color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
+                ax.plot(bin_centers[mask], y_fit[mask], color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
 
                 # double gaussian fit
                 # p01 = list(config["p0s"][iB])
