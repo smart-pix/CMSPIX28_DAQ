@@ -16,6 +16,11 @@ from Analyze import inspectPath
 def gaussian(x, amplitude, mean, std_dev):
     return amplitude * np.exp(-((x - mean)**2) / (2 * std_dev**2))
 
+# def double_gaussian(x, amp1, mean1, std1, amp2, mean2, std2):
+#     gauss1 = amp1 * np.exp(-((x - mean1)**2) / (2 * std1**2))
+#     gauss2 = amp2 * np.exp(-((x - mean2)**2) / (2 * std2**2))
+#     return gauss1 + gauss2
+
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
@@ -41,7 +46,7 @@ pltConfig["nelectron_asic_50perc_perBit"] = {
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
     # "binConfigs": [[0, 4500, 226], [0, 4500, 226], [0, 4500, 226]], # use this if you want all to have the same range
-    "p0s": [[50, 400, 100], [50, 1200, 100], [50, 2800, 100]], # bit 0, bit 1, bit 2
+    "p0s": [[50, 400, 100], [50, 1300, 100], [50, 3300, 100]], # bit 0, bit 1, bit 2
     "ylim": [0, 35],
     "idx" : 1,
 }
@@ -56,9 +61,9 @@ pltConfig["scurve_mean_perBit"] = {
 pltConfig["scurve_std_perBit"] = {
     "xlabel": r"S-Curve $\sigma$ [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
-    "binConfigs": [[0, 500, 51], [0, 500, 51], [0, 500, 51]], # bit 0, bit 1, bit 2
+    "binConfigs": [[0, 400, 41], [0, 400, 41], [0, 400, 41]], # bit 0, bit 1, bit 2
     "p0s": [[50, 50, 50], [50, 50, 50], [50, 50, 50]], # bit 0, bit 1, bit 2
-    "ylim": [0, 109],
+    "ylim": [0, 149],
     "idx" : 3,
 }
 print(features.shape)
@@ -103,7 +108,20 @@ for name, config in pltConfig.items():
                 amplitude, mean , std_dev = popt
                 std_dev = abs(std_dev) # from the gaussian the reported value could be +/- but just report positive
                 ax.plot(bin_centers, y_fit, color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
-        
+
+                # double gaussian fit
+                # p01 = list(config["p0s"][iB])
+                # p02 = list(config["p0s"][iB])
+                # p02[0] = 5
+                # p02[1] += 500 # *= 1.75
+                # p0 = p01 + p02
+                # print(p0)
+                # popt2, _ = curve_fit(double_gaussian, bin_centers, hist_vals, p0=p0) # , bounds=bounds) # fit gaussian
+                # y_fit_1 = gaussian(bin_centers, *popt2[:3]) # evaluate gaussian at bins
+                # y_fit_2 = gaussian(bin_centers, *popt2[3:])
+                # ax.plot(bin_centers, y_fit_1, color='b', label='Gaussian 1 Fit''\n'fr'({popt2[1]:.2f},{abs(popt2[2]):.2f})', alpha=0.5) # fit
+                # ax.plot(bin_centers, y_fit_2, color='g', label='Gaussian 2 Fit''\n'fr'({popt2[4]:.2f},{abs(popt2[5]):.2f})', alpha=0.5)
+                
             # add legend
             legend = ax.legend(fontsize=12)
             for text in legend.get_texts():
