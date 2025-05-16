@@ -144,10 +144,6 @@ for iP in patternIndices:
     # make output array
     output_array = np.array(output) # 8x32 style
     output_array16 = convert_8x32_to_16x16(output_array) # 16x16 style
-    print(output_array.shape, output_array16.shape)
-
-    print(output_array)
-    print(output_array16)
 
     # save the output
     doPlot(output_array, args.outDir)
