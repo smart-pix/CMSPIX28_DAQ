@@ -44,7 +44,8 @@ base_colors = {
 print(base_colors, scurve.shape)
 
 # loop over the settings
-for iS in range(scurve.shape[0]):
+nSettings = min(scurve.shape[0], 5) # cap at 10 settings or else it takes too long
+for iS in range(nSettings):
 
     # set up figure
     fig, ax = plt.subplots(figsize=(6,6))

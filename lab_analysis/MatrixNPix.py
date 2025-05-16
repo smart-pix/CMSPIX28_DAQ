@@ -103,21 +103,24 @@ for name, config in pltConfig.items():
             # gaussian fit
             if config["p0s"] is not None:
                 
-                # set amplitude to max of hist values
-                p0 = config["p0s"][iB]
-                p0[0] = max(hist_vals)
-                # restrict fit to certain region
-                mask = bin_centers != np.nan
-                if "fitRange" in config.keys():
-                    print("Only fitting in the range: ", config["fitRange"][iB])
-                    mask = ((bin_centers > config["fitRange"][iB][0]) & (bin_centers < config["fitRange"][iB][1]))                    
-                # perform fit
-                popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
-                # evaluate fit and plot
-                y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
-                amplitude, mean , std_dev = popt
-                std_dev = abs(std_dev) # from the gaussian the reported value could be +/- but just report positive
-                ax.plot(bin_centers[mask], y_fit[mask], color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
+                try:
+                    # set amplitude to max of hist values
+                    p0 = config["p0s"][iB]
+                    p0[0] = max(hist_vals)
+                    # restrict fit to certain region
+                    mask = bin_centers != np.nan
+                    if "fitRange" in config.keys():
+                        print("Only fitting in the range: ", config["fitRange"][iB])
+                        mask = ((bin_centers > config["fitRange"][iB][0]) & (bin_centers < config["fitRange"][iB][1]))                    
+                    # perform fit
+                    popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
+                    # evaluate fit and plot
+                    y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
+                    amplitude, mean , std_dev = popt
+                    std_dev = abs(std_dev) # from the gaussian the reported value could be +/- but just report positive
+                    ax.plot(bin_centers[mask], y_fit[mask], color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
+                except:
+                    print("Fit failed")
 
                 # double gaussian fit
                 # p01 = list(config["p0s"][iB])
