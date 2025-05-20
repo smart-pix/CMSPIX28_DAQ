@@ -30,10 +30,9 @@ def convert_8x32_to_16x16(output):
 
     for i in range(rows):
         # even columns from output row i → becomes row 2*i in result
-        
         result[2*i, :] = output[i, 0::2]  # columns 1,3,5,... (odd indices) 
+
         # odd columns from output row i → becomes row 2*i + 1 in result
-        
         result[2*i + 1, :] = output[i, 1::2]
         
     return result
