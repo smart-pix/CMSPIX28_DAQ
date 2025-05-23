@@ -20,4 +20,4 @@ chmod +x setup.sh
 The python environment in .../CMS_PIX_28/testing/tools/venvs/p3.11.11/bin/ contains the right modules installed to run spacely.
 
 # Running only-FPGA setup
-- If in case, you need to run spacely **without the carboard**, then comment out [these]([url](https://github.com/SpacelyProject/spacely/blob/f5421e79060af1a8675ec8a453c58c70b562c728/PySpacely/src/Spacely_Caribou.py#L255-L256)) lines.
+- If in case, you need to run spacely **without the carboard**, then comment out [these](https://github.com/SpacelyProject/spacely/blob/f5421e79060af1a8675ec8a453c58c70b562c728/PySpacely/src/Spacely_Caribou.py#L255-L256) lines.
