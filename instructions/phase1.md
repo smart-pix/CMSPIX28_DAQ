@@ -36,7 +36,7 @@ conda activate spacelyvenv
 ```
 - cd CMSPIX28_DAQ/spacely/PySpacely/
 - edit Master_Config.py target to "CMSPIX28"
-- comment out lines XX in src/Spacely_Caribou.py
+- comment out lines XX in src/Spacely_Caribou.py (**NOTE**: the car_i2c_write lines need to be commented out only when there is no carboard connected. Don't have these lines commented out if the carboard is connected.)
 
 3. generate bitstream and flash FPGA
 ```
