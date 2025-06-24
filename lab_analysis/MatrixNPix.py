@@ -107,11 +107,13 @@ for name, config in pltConfig.items():
                     # set amplitude to max of hist values
                     p0 = config["p0s"][iB]
                     p0[0] = max(hist_vals)
+                    mean = np.average(bin_centers, weights=hist_vals)
+                    rms = np.sqrt(np.average((bin_centers - mean)**2, weights=hist_vals))
                     # restrict fit to certain region
                     mask = bin_centers != np.nan
                     if "fitRange" in config.keys():
                         print("Only fitting in the range: ", config["fitRange"][iB])
-                        mask = ((bin_centers > config["fitRange"][iB][0]) & (bin_centers < config["fitRange"][iB][1]))                    
+                        mask = ((bin_centers > mean - 1.5 * rms) & (bin_centers < mean + 1.5 * rms))    
                     # perform fit
                     popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
                     # evaluate fit and plot
