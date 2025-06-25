@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import mplhep as hep
 import argparse
+import math
 
 # plt.style.use(hep.style.ROOT)
 hep.style.use("ATLAS")
@@ -80,9 +81,15 @@ for name, config in pltConfig.items():
                 continue
 
             # get binning
-            bins = np.linspace(config["binConfigs"][iB][0], 
-                               config["binConfigs"][iB][1], 
-                               config["binConfigs"][iB][2])
+            # bins = np.linspace(config["binConfigs"][iB][0], 
+            #                    config["binConfigs"][iB][1], 
+            #                    config["binConfigs"][iB][2])
+            step_size = 20
+            if("sigma" in config["xlabel"]):
+                step_size = 10
+            xlim_min, xlim_max = max(0, math.floor(min(temp) / 100) * 100 - 100), math.ceil(max(temp) / 100) * 100 + 100
+            nbins = (xlim_max - xlim_min) // step_size
+            bins = np.linspace(xlim_min, xlim_max, nbins + 1)  # Add 1 to include the upper limit
 
             # set up figure
             fig, ax = plt.subplots(figsize=(6,6))
@@ -100,6 +107,8 @@ for name, config in pltConfig.items():
             ax.step(bin_centers, hist_vals, where='mid', linewidth=1.5, color='black', label='Data')
             # ax.hist(features[iS:,:,iB:,config["idx"]].flatten(), bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram # inData[name][iB]
 
+            mean = 0
+            rms = 0
             # gaussian fit
             if config["p0s"] is not None:
                 
@@ -113,7 +122,7 @@ for name, config in pltConfig.items():
                     mask = bin_centers != np.nan
                     if "fitRange" in config.keys():
                         print("Only fitting in the range: ", config["fitRange"][iB])
-                        mask = ((bin_centers > mean - 1.5 * rms) & (bin_centers < mean + 1.5 * rms))    
+                        mask = ((bin_centers > mean - 3.0 * rms) & (bin_centers < mean + 3.0 * rms))    
                     # perform fit
                     popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
                     # evaluate fit and plot
@@ -144,6 +153,7 @@ for name, config in pltConfig.items():
 
             # limits
             ax.set_xlim(bins[0], bins[-1])
+            print("updated code/plots")
             if config["ylim"] is not None:
                 ax.set_ylim(config["ylim"])
             else:
