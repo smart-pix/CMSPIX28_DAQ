@@ -28,6 +28,13 @@ def inspectPath(inPath):
     matches = re.findall(r'([a-zA-Z]+)([0-9.]+)', inPath)
     for match in matches:
         info[match[0]] = float(match[1])
+    # handle unique cases
+    if "injDly" in split[-1]:
+        info["injDly"] = int(split[-1].split("injDly")[1], 16)
+    if "FallTime" in split[-1]:
+        FallTime = float(split[-1].split("FallTime")[1])
+        FallTime = round(FallTime, abs(int(f"{FallTime:.1e}".split("e")[1])) + 1) # handle float precision
+        info["FallTime"] = FallTime
     # convert to mV from V
     info["vMin"] *= VtomV
     info["vMax"] *= VtomV
@@ -38,7 +45,7 @@ def analysis(config):
 
     # pick up configurations
     info = inspectPath(config["inPath"])
-    # print(info)
+    print(info)
 
     # get list of files
     files = list(glob.glob(os.path.join(config["inPath"], "*.np*")))
@@ -173,6 +180,10 @@ def analysis(config):
                     t_.append(info["VTH"])
                 elif info["testType"] == "MatrixCalibration":
                     t_.append(-1)
+                elif info["testType"] == "MatrixInjDly":
+                    t_.append(info["injDly"])
+                elif info["testType"] == "MatrixPulseGenFall":
+                    t_.append(info["FallTime"])
                 else:
                     t_.append(-1)
                 # add other entries

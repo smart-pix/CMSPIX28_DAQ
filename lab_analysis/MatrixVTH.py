@@ -27,7 +27,7 @@ info = inspectPath(os.path.dirname(args.inFilePath))
 print(info)
 
 # get output directory
-outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
+outDir = args.outDir if args.outDir else os.path.dirname(args.inFilePath)
 os.makedirs(outDir, exist_ok=True)
 # os.chmod(outDir, mode=0o777)
 
