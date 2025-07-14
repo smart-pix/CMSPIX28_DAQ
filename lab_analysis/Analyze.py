@@ -95,7 +95,7 @@ def analysis(config):
     # no setting scan per bit then add a setting dimension
     if info["testType"] in ["Single", "MatrixNPix"]:
         data = data.reshape(1, 1, NBIT, data.shape[1])
-    elif info["testType"] in ["MatrixVTH"]:
+    elif info["testType"] in ["MatrixVTH", "MatrixInjDly", "MatrixPulseGenFall"]:
         # data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
         data = data.reshape(1, 1, NBIT, data.shape[1])
     else:
@@ -218,6 +218,10 @@ if __name__ == "__main__":
         inPathList = os.path.join(inPathList, "nPix*")
     elif "MatrixVTH" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "VTH*")
+    elif "MatrixInjDly" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "injDly*")
+    elif "MatrixPulseGenFall" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "FallTime*")
     inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
     print(inPathList)
