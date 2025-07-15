@@ -225,6 +225,7 @@ if __name__ == "__main__":
 
     # handle input
     inPathList = args.inFilePath
+    # handle custom path names
     if "MatrixNPix" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "nPix*")
     elif "MatrixVTH" in inPathList and "*" not in inPathList:
@@ -233,9 +234,15 @@ if __name__ == "__main__":
         inPathList = os.path.join(inPathList, "injDly*")
     elif "MatrixPulseGenFall" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "FallTime*")
+    # glob
     inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
-    print(inPathList)
+    # handle custom sorting
+    if "MatrixGenPulseFall" in inPathList[0]:
+        inPathList = sorted(inPathList, key=lambda x: float(re.search(r'FallTime([\d.eE+-]+)', x).group(1)))
+    
+    for path in inPathList:
+        print(path)
 
     # Sort the list based on the number in the final directory
     try:
