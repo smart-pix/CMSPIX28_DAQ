@@ -237,8 +237,9 @@ if __name__ == "__main__":
     # glob
     inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
+    
     # handle custom sorting
-    if "MatrixGenPulseFall" in inPathList[0]:
+    if "MatrixPulseGenFall" in inPathList[0]:
         inPathList = sorted(inPathList, key=lambda x: float(re.search(r'FallTime([\d.eE+-]+)', x).group(1)))
     
     for path in inPathList:
