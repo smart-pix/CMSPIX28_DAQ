@@ -30,7 +30,7 @@ info = inspectPath(os.path.dirname(args.inFilePath))
 print(info)
 
 # get output directory
-outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
+outDir = args.outDir if args.outDir else os.path.dirname(args.inFilePath)
 os.makedirs(outDir, exist_ok=True)
 # os.chmod(outDir, mode=0o777)
 
@@ -44,7 +44,8 @@ base_colors = {
 print(base_colors, scurve.shape)
 
 # loop over the settings
-for iS in range(scurve.shape[0]):
+nSettings = min(scurve.shape[0], 5) # cap at 10 settings or else it takes too long
+for iS in range(nSettings):
 
     # set up figure
     fig, ax = plt.subplots(figsize=(6,6))
@@ -66,8 +67,10 @@ for iS in range(scurve.shape[0]):
                 color = base_colors[iB][iP]
             elif info["testType"] == "MatrixVTH":
                 label = ""
+                color = bit_colors[iB]
             # plot
-            ax.plot(nelectron_asics, scurve[iS, iP, iB], color=color, label=label)
+            # print(iS, iP, iB, scurve[iS, iP, iB])
+            ax.plot(nelectron_asics, scurve[iS, iP, iB], color=color, label=label) #, marker='o', ms=5)
             # print(f"Pixel {iP}, Bit {iB} (50%, mu, sigma): ", features[iS, iP, iB][1:])
 
     # add legend

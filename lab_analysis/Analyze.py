@@ -28,6 +28,13 @@ def inspectPath(inPath):
     matches = re.findall(r'([a-zA-Z]+)([0-9.]+)', inPath)
     for match in matches:
         info[match[0]] = float(match[1])
+    # handle unique cases
+    if "injDly" in split[-1]:
+        info["injDly"] = int(split[-1].split("injDly")[1], 16)
+    if "FallTime" in split[-1]:
+        FallTime = float(split[-1].split("FallTime")[1])
+        FallTime = round(FallTime, abs(int(f"{FallTime:.1e}".split("e")[1])) + 1) # handle float precision
+        info["FallTime"] = FallTime
     # convert to mV from V
     info["vMin"] *= VtomV
     info["vMax"] *= VtomV
@@ -38,7 +45,7 @@ def analysis(config):
 
     # pick up configurations
     info = inspectPath(config["inPath"])
-    # print(info)
+    print(info)
 
     # get list of files
     files = list(glob.glob(os.path.join(config["inPath"], "*.np*")))
@@ -54,7 +61,8 @@ def analysis(config):
 
     # loop over the files
     for iF, inFileName in enumerate(files): #tqdm(enumerate(files), desc="Processing", unit="step"):
-    
+        # print(iF, inFileName)
+
         v_asic = float(os.path.basename(inFileName).split("vasic_")[1].split(".np")[0])
         v_asic *= VtomV # convert v_asic to mV from V
 
@@ -73,9 +81,12 @@ def analysis(config):
         # compute fraction with 1's
         if info["testType"] == "MatrixCalibration":
             frac = x.sum(2) / x.shape[2] # sample dimension is 2
-            frac = np.transpose(frac, (0,2,1)) # pixel, bit, sample setting
+            # frac = np.transpose(frac, (0,2,1)) # pixel, bit, sample setting
+            frac = np.transpose(frac, (1,0,2)) # sample setting, pixel, bit
             # frac = frac.reshape(frac.shape[0]*frac.shape[1], -1)
-            frac = frac.reshape(-1, frac.shape[0], frac.shape[1])
+            # frac = frac.reshape(-1, frac.shape[0], frac.shape[1])
+            # print(frac.shape)
+            # exit()
         else:
             frac = x.sum(0)/x.shape[0]
         # save to lists
@@ -86,19 +97,18 @@ def analysis(config):
     # convert
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics/VtomV*Pgain*Cin/Qe # divide by 1000 is to convert mV to Volt
-    print(v_asics)
-    print(nelectron_asics)
     data = np.stack(data, -1)
-
+    print(data.shape)
     # no setting scan per bit then add a setting dimension
     if info["testType"] in ["Single", "MatrixNPix"]:
         data = data.reshape(1, 1, NBIT, data.shape[1])
-    elif info["testType"] in ["MatrixVTH"]:
-        data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
+    elif info["testType"] in ["MatrixVTH", "MatrixInjDly", "MatrixPulseGenFall"]:
+        # data = data.reshape(1, NPIXEL, NBIT, data.shape[1])
+        data = data.reshape(1, 1, NBIT, data.shape[1])
     else:
         print("Leaving data shape as it is for test type: ", info["testType"])
 
-    # print("Expected dimensions (nSettings, nPixel, nBit, nVasicStep). Actual: ", data.shape)
+    print("Expected dimensions (nSettings, nPixel, nBit, nVasicStep). Actual: ", data.shape)
 
     # filter threshold to analyse the data
     sCutHi = 0.8
@@ -108,7 +118,7 @@ def analysis(config):
     # loop over bits
     features = []
     # loop over settings
-    for iS in range(data.shape[0]):
+    for iS in tqdm(range(data.shape[0]), desc="Processing", unit="step"): # range(data.shape[0]):
         
         # loop over pixels
         temp_pixel = []
@@ -124,8 +134,10 @@ def analysis(config):
                 fiftyPerc_, mean_, std_ = -999, -999, -999
 
                 # check if good bit. if pass threshold, then fit and get 50% values
-                goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
-                
+                # goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
+                # goodBit = bit[0] < sCutLo and bit[-1] > sCutHi
+                goodBit = bit[-1] > sCutHi
+
                 # fit and get 50% values
                 if goodBit:
             
@@ -133,24 +145,32 @@ def analysis(config):
                     p0s = [[400, 40], [1200, 40], [2500, 40]]
 
                     # fit
-                    try:
-                        fitResult=curve_fit(
-                            f=norm.cdf,
-                            xdata=nelectron_asics,
-                            ydata=bit,
-                            p0=p0s[iB],
-                            bounds=((-np.inf,0),(np.inf,np.inf))
-                        )
-                        mean_, std_ = fitResult[0]
-                    except:
-                        print("fit failed")
-                        mean_, std_ = -1, -1
+                    if config["doFit"]:
+                        try:
+                            fitResult=curve_fit(
+                                f=norm.cdf,
+                                xdata=nelectron_asics,
+                                ydata=bit,
+                                p0=p0s[iB],
+                                bounds=((-np.inf,0),(np.inf,np.inf))
+                            )
+                            mean_, std_ = fitResult[0]
+                        except:
+                            print("fit failed")
+                            mean_, std_ = -1, -1
 
                     # pick up 50% values
                     idx_closest = np.argmin(np.abs(bit - 0.5))
                     fiftyPerc_ = nelectron_asics[idx_closest]
-                else:
-                    print("Did not pass threshold cuts: ", bit[0], bit[-1], sCutLo, sCutHi)
+
+                    # pick up points closest to 0.1 and 0.9
+                    idx1 = np.argmin(np.abs(bit - 0.1))
+                    idx9 = np.argmin(np.abs(bit - 0.9))
+                    # print(idx1, nelectron_asics[idx1], idx9, nelectron_asics[idx9])
+                    fiftyPerc_ = (nelectron_asics[idx9] + nelectron_asics[idx1])/2
+
+                # else:
+                #    print("Did not pass threshold cuts: ", bit[0], bit[-1], sCutLo, sCutHi)
 
                 # append
                 t_ = []
@@ -160,6 +180,10 @@ def analysis(config):
                     t_.append(info["VTH"])
                 elif info["testType"] == "MatrixCalibration":
                     t_.append(-1)
+                elif info["testType"] == "MatrixInjDly":
+                    t_.append(info["injDly"])
+                elif info["testType"] == "MatrixPulseGenFall":
+                    t_.append(info["FallTime"])
                 else:
                     t_.append(-1)
                 # add other entries
@@ -183,6 +207,7 @@ if __name__ == "__main__":
     parser.add_argument('-i', '--inFilePath', required=True, help='Path to input files')
     parser.add_argument('-j', '--ncpu', type=int, default=1, help='Number of CPUs to use')
     parser.add_argument('-o', '--outDir', default=None, help="Output directory. If not provided then use directory of inFilePath")
+    parser.add_argument('--doFit', action="store_true", help="Run the S-cruve fitting. Note the analysis will take significantly longer.")
     args = parser.parse_args()
     
     # outdir
@@ -199,9 +224,27 @@ if __name__ == "__main__":
     # os.chmod(outDir, mode=0o777)
 
     # handle input
-    inPathList = list(sorted(glob.glob(args.inFilePath)))
+    inPathList = args.inFilePath
+    # handle custom path names
+    if "MatrixNPix" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "nPix*")
+    elif "MatrixVTH" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "VTH*")
+    elif "MatrixInjDly" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "injDly*")
+    elif "MatrixPulseGenFall" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "FallTime*")
+    # glob
+    inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
     
+    # handle custom sorting
+    if "MatrixPulseGenFall" in inPathList[0]:
+        inPathList = sorted(inPathList, key=lambda x: float(re.search(r'FallTime([\d.eE+-]+)', x).group(1)))
+    
+    for path in inPathList:
+        print(path)
+
     # Sort the list based on the number in the final directory
     try:
         def extract_number(path):
@@ -216,6 +259,7 @@ if __name__ == "__main__":
     for inPath in inPathList:
         confs.append({
             "inPath": inPath,
+            "doFit" : args.doFit
         })
 
     # launch jobs 

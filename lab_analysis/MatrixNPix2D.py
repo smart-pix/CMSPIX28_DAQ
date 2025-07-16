@@ -33,14 +33,14 @@ features = inData["features"]
 # expect that features is of shape (nsetting, npix, nbit, vasic step)
 # expect that for MatrixNPix test that there is only one setting
 print(features.shape)
-features = features[0]
+# features = features[0]
 
 # get information
 info = inspectPath(os.path.dirname(args.inFilePath))
 print(info)
 
 # output directory
-outDir = args.outDir if args.outDir else os.path.join(os.path.dirname(args.inFilePath), f"plots")
+outDir = args.outDir if args.outDir else os.path.dirname(args.inFilePath)
 os.makedirs(outDir, exist_ok=True)
 
 pltConfig = []
@@ -61,83 +61,99 @@ pltConfig.append({
 })
 
 iB = 0
-for iB in range(3):
+# for iS in range(features.shape[0]):
+#     for iB in range(3):
 
-    bit = features[:,iB]
-    print(bit.shape)
-    bit = bit[bit[:, 0].argsort()]
+#         # get data to plot
+#         bit = features[iS:,:,iB:,]
+#         print(bit.shape)
+#         if np.all(bit==-999):
+#             print(f"All values are -999 for feature {config['idx']}. Skipping plotting.")
+#             continue
+for iS in range(features.shape[0]):
+    for iB in range(3):
+
+        bit = features[iS:,:,iB]
+        print(bit.shape)
+        bit = np.squeeze(bit, axis=0) # remove the setting axis
+        print(bit.shape)
+        bit = bit[bit[:, 0].argsort()]
+        
+        # print out two values so the user can check by eye
+        print(bit[bit[:, 0] == 63], bit[bit[:, 0] == 193])
     
-    # print out two values so the user can check by eye
-    print(bit[bit[:, 0] == 63], bit[bit[:, 0] == 193])
-    
-    # 1=50perc, 2=mean, 3=std
-    for fIdx in range(1, 4):  
+        # 1=50perc, 2=mean, 3=std
+        for fIdx in range(1, 4):  
+            
+            if np.all(bit[:,fIdx]==-999):
+                print(f"All values are -999 for feature {fIdx}. Skipping plotting.")
+                continue
+
+            # Create an empty 2D array with the same shape as grid but populated with fIdx
+            output_array = np.zeros((len(grid), len(grid[0])))
         
-        # Create an empty 2D array with the same shape as grid but populated with fIdx
-        output_array = np.zeros((len(grid), len(grid[0])))
+            # Fill the output_array with the corresponding values from bit0
+            for i in range(len(grid)):
+                for j in range(len(grid[i])):
+                    pixel_number = grid[i][j]
+                    output_array[len(grid)-1-i][j] = bit[bit[:, 0] == pixel_number, fIdx] # set this so that the order is correct top to bottom len(grid)-1-i
         
-        # Fill the output_array with the corresponding values from bit0
-        for i in range(len(grid)):
-            for j in range(len(grid[i])):
-                pixel_number = grid[i][j]
-                output_array[len(grid)-1-i][j] = bit[bit[:, 0] == pixel_number, fIdx] # set this so that the order is correct top to bottom len(grid)-1-i
-        
-        # if value is <0 then bit failed so put -np.nan
-        output_array[output_array<0] = -np.nan
+            # if value is <0 then bit failed so put -np.nan
+            output_array[output_array<0] = -np.nan
 
-        # plot
-        fig, ax = plt.subplots()
-        
-        # plot the 2D histogram
-        cmap = plt.cm.viridis
-        cmap.set_bad(color='white')
-        binsx = np.linspace(0, output_array.shape[0], output_array.shape[0]+1)
-        binsy = np.linspace(0, output_array.shape[1], output_array.shape[1]+1)
-        h2dx = np.tile(np.arange(32),8)
-        h2dy = np.repeat(np.arange(8), 32)
-        cax = ax.hist2d(
-            h2dx, 
-            h2dy, 
-            bins=[binsy, binsx], 
-            weights=output_array.flatten(), 
-            cmap=cmap,
-            vmin=pltConfig[fIdx-1]["zlim"][iB][0], 
-            vmax=pltConfig[fIdx-1]["zlim"][iB][1]
-        )
-
-        # set the colorbar
-        cbar = fig.colorbar(cax[3], ax=ax, orientation='horizontal', location='top')
-        cbar.ax.xaxis.set_ticks_position('top')
-        cbar.ax.xaxis.set_label_position('top')
-        cbar.set_label(pltConfig[fIdx - 1]["zlabel"], fontsize=18, labelpad=10)
-        ax.set_xlabel('Column', fontsize=18, labelpad=10)
-        ax.set_ylabel('Row', fontsize=18, labelpad=10)
-        ax.grid(which='both', color='black', linestyle='-', linewidth=1, alpha=1)
-        
-        ax.set_xlim(0, len(grid[0]))
-        ax.set_ylim(0, len(grid))
-
-        # set ticks
-        # SetTicks(ax)
-
-        ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=16))
-        ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
-        ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
-        ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))
-        ax.tick_params(axis='both', which='major', labelsize=18, length=8, width=1, direction="in", pad=8)
-
-        # put pixel number inside the grid
-        for i in range(len(grid)):
-            for j in range(len(grid[i])):
-                # color = "white" if output_array[i][j] > 0 else "black"
-                ax.text(j + 0.5, len(grid)-1-i + 0.5, f"{grid[i][j]}", color="gray", ha="center", va="center", fontsize=6)
-                ax.text(j + 0.5, len(grid)-1-i + 0.3, f"{output_array[len(grid)-1-i][j]:.1f}", color="gray", ha="center", va="center", fontsize=3)
-
-        # save fig
-        outFileName = os.path.join(outDir, f"grid_{pltConfig[fIdx - 1]['name']}_array_bit{iB}.pdf")
-        print(f"Saving file to {outFileName}")
-        plt.savefig(outFileName, bbox_inches='tight')
-        plt.close()
+            # plot
+            fig, ax = plt.subplots()
+            
+            # plot the 2D histogram
+            cmap = plt.cm.viridis
+            cmap.set_bad(color='white')
+            binsx = np.linspace(0, output_array.shape[0], output_array.shape[0]+1)
+            binsy = np.linspace(0, output_array.shape[1], output_array.shape[1]+1)
+            h2dx = np.tile(np.arange(32),8)
+            h2dy = np.repeat(np.arange(8), 32)
+            cax = ax.hist2d(
+                h2dx, 
+                h2dy, 
+                bins=[binsy, binsx], 
+                weights=output_array.flatten(), 
+                cmap=cmap,
+                vmin=pltConfig[fIdx-1]["zlim"][iB][0], 
+                vmax=pltConfig[fIdx-1]["zlim"][iB][1]
+            )
+            
+            # set the colorbar
+            cbar = fig.colorbar(cax[3], ax=ax, orientation='horizontal', location='top')
+            cbar.ax.xaxis.set_ticks_position('top')
+            cbar.ax.xaxis.set_label_position('top')
+            cbar.set_label(pltConfig[fIdx - 1]["zlabel"], fontsize=18, labelpad=10)
+            ax.set_xlabel('Column', fontsize=18, labelpad=10)
+            ax.set_ylabel('Row', fontsize=18, labelpad=10)
+            ax.grid(which='both', color='black', linestyle='-', linewidth=1, alpha=1)
+            
+            ax.set_xlim(0, len(grid[0]))
+            ax.set_ylim(0, len(grid))
+            
+            # set ticks
+            # SetTicks(ax)
+            
+            ax.xaxis.set_major_locator(ticker.MaxNLocator(nbins=16))
+            ax.yaxis.set_major_locator(ticker.MaxNLocator(nbins=4))
+            ax.xaxis.set_minor_locator(ticker.MultipleLocator(1))
+            ax.yaxis.set_minor_locator(ticker.MultipleLocator(1))
+            ax.tick_params(axis='both', which='major', labelsize=18, length=8, width=1, direction="in", pad=8)
+            
+            # put pixel number inside the grid
+            for i in range(len(grid)):
+                for j in range(len(grid[i])):
+                    # color = "white" if output_array[i][j] > 0 else "black"
+                    ax.text(j + 0.5, len(grid)-1-i + 0.5, f"{grid[i][j]}", color="gray", ha="center", va="center", fontsize=6)
+                    ax.text(j + 0.5, len(grid)-1-i + 0.3, f"{output_array[len(grid)-1-i][j]:.1f}", color="gray", ha="center", va="center", fontsize=3)
+                    
+            # save fig
+            outFileName = os.path.join(outDir, f"grid_{pltConfig[fIdx - 1]['name']}_array_Setting{iS}_Bit{iB}.pdf")
+            print(f"Saving file to {outFileName}")
+            plt.savefig(outFileName, bbox_inches='tight')
+            plt.close()
 
 
 
