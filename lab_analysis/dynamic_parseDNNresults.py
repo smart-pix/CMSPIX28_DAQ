@@ -1,4 +1,10 @@
 import numpy as np
+import argparse
+
+parser = argparse.ArgumentParser(description='Parse DNN results from CSV files')
+parser.add_argument("-r", "--readout", type=str, default='./readout.csv', help='Path to readout CSV file')
+parser.add_argument("-d", "--dnn_rtl", type=str, default='./dnn_RTL_out.csv', help='Path to DNN RTL output CSV file')
+args = parser.parse_args()
 
 dnn0 = [0,0]
 dnn1 = [0,1]
@@ -27,10 +33,10 @@ def eval_dnn_result(results_file, bit_iter):
     final_results = np.array(final_results)
     return final_results
 
-results_file_to_evaluate = np.genfromtxt('readout.csv', delimiter=',', dtype=int)
+results_file_to_evaluate = np.genfromtxt(args.readout, delimiter=',', dtype=int)
 results_file = results_file_to_evaluate[:200]
 
-dnn_RTL_out = np.genfromtxt('dnn_RTL_out.csv', delimiter=',', dtype=int)
+dnn_RTL_out = np.genfromtxt(args.dnn_rtl, delimiter=',', dtype=int)
 expected_train_results = dnn_RTL_out[:200]
 
 assert len(results_file) == len(expected_train_results), "Mismatch in number of events between results file and expected train results"
@@ -71,7 +77,13 @@ np.savetxt('final_results.csv', final_results, delimiter=',', fmt='%d')
 
 assert final_results.shape == dnn_RTL_out.shape
 
+no_match = np.where(final_results != dnn_RTL_out)
+for i in no_match:
+    print("Final result:", final_results[i])
+    print("DNN RTL out:", dnn_RTL_out[i])
+
 matches = np.sum(final_results == dnn_RTL_out)
+print(final_results.shape, matches)
 total = len(final_results)
 percentage_match = (matches / total) * 100
 
