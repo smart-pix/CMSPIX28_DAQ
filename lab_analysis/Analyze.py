@@ -36,9 +36,12 @@ def inspectPath(inPath):
         FallTime = round(FallTime, abs(int(f"{FallTime:.1e}".split("e")[1])) + 1) # handle float precision
         info["FallTime"] = FallTime
     # convert to mV from V
-    info["vMin"] *= VtomV
-    info["vMax"] *= VtomV
-    info["vStep"] *= VtomV
+    if "vMin" in info.keys():
+        info["vMin"] *= VtomV  
+    if "vMax" in info.keys(): 
+        info["vMax"] *= VtomV
+    if "vStep" in info.keys():  
+        info["vStep"] *= VtomV
     return info
 
 def analysis(config):
