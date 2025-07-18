@@ -6,3 +6,4 @@
 # folders
 plots/
 __pycache__/
+lab_analysis/*.csv
