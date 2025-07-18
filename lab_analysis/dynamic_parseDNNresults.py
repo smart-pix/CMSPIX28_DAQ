@@ -163,9 +163,16 @@ if args.true_pt:
     ref_results_extracted = ref_results[alltrue]
     print("Extracted shapes:", true_pt_extracted.shape, final_results_extracted.shape)
 
-    # Calculate fraction of correctly labeled high pT particles vs true pT
     # Create bins for true pT values from -5 to 5
-    pt_bins = np.linspace(-5, 5, 101)
+    # pt_bins = np.linspace(-5, 5, 101)
+    # create bins
+    bins_pos = np.unique(np.concatenate([
+        np.linspace(0, 1, 5, endpoint=False),
+        np.linspace(1, 2, 5, endpoint=False),
+        np.linspace(2, 4, 3, endpoint=True)
+    ]))
+    bins_neg = -1 * bins_pos[::-1]
+    pt_bins = np.unique(np.concatenate([bins_neg, bins_pos]))
     bin_centers = (pt_bins[:-1] + pt_bins[1:]) / 2
     
     # For extracted subset
@@ -242,26 +249,34 @@ if args.true_pt:
     print(bin_centers)
     print(asic_fractions)
     print(offline_fractions)
-    ax.plot(bin_centers, ref_results_full_fractions, 'd', linewidth=1, markersize=4, color="black", label="Layer7 Ref Full Stat.")
-    # ax.plot(bin_centers, ref_results_extracted_fractions, 'D', linewidth=1, markersize=4, color="green", label="Layer7 Ref")
-    # ax.plot(bin_centers, asic_fractions, '-o', linewidth=1, markersize=4, color="red", label="ROIC")
-    # ax.plot(bin_centers, offline_fractions, '1', linewidth=1, markersize=6, color="blue", label="DNN RTL")    
+    bin_widths = np.diff(pt_bins)
+    ax.errorbar(bin_centers, ref_results_full_fractions, xerr=bin_widths/2, yerr=0, fmt='o', linewidth=1, markersize=4, color="black", label=f"Layer7 Ref Full Stat.") #Full Stat.") # "d"
+    ax.errorbar(bin_centers, ref_results_extracted_fractions, xerr=bin_widths/2, yerr=0, fmt='o', linewidth=1, markersize=4, color="green", label="Layer7 Ref") # "D"
+    ax.errorbar(bin_centers, asic_fractions, xerr=bin_widths/2, yerr=0, fmt='o', linewidth=1, markersize=4, color="red", label=f"ROIC ({alltrue.shape[0]}/{yprofile.shape[0]})", alpha=0.5) # f"ROIC ({alltrue.shape[0]}/{yprofile.shape[0]})"
+    ax.errorbar(bin_centers, offline_fractions, xerr=bin_widths/2, yerr=0, fmt='1', linewidth=1, markersize=6, color="blue", label="DNN RTL")    
     # ax.stairs(fractions, pt_bins, linewidth=2, color="black", alpha=0.8)
     ax.set_xlabel(r'True $p_{\mathrm{T}}$ [GeV]')
-    ax.set_ylabel(r'Predicts high $p_{\mathrm{T}}$ (0) / particles in bin')
+    # ax.set_ylabel(r'Predicts high $p_{\mathrm{T}}$ (0) / particles in bin')
+    ax.set_ylabel(r'Fraction predicted high $p_{\mathrm{T}}$ (> 0.2 GeV)')
     # ax.set_title('DNN Performance: Fraction of correctly labeled high pT particles vs true pT')
     ax.grid(True, alpha=0.3)
-    ax.set_ylim(-0.05, 1.3)
-    ax.set_xlim(-5, 5)
+    ax.set_ylim(0, 1.05)
+    ax.set_xlim(-4, 4)
+    # Show only major bin boundaries for cleaner appearance
+    # major_ticks = pt_bins[::5]  # Every other bin edge
+    # ax.set_xticks(major_ticks)
+    # ax.set_xticklabels([f'{x:.1f}' for x in major_ticks])
+    # ax.set_xticks(pt_bins)
     ax.tick_params(which='minor', length=4)
     ax.tick_params(which='major', length=6)
     ax.xaxis.set_minor_locator(MultipleLocator(0.2))
     ax.yaxis.set_minor_locator(MultipleLocator(0.05))
     # Add text annotation with matching statistics
-    SmartPixLabel(ax, 0.05, 0.9, size=18)
-    ax.text(0.05, 0.86, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
-    ax.text(0.05, 0.82, f'y-profile matches: {alltrue.shape[0]}/{yprofile.shape[0]} ({alltrue.shape[0]/yprofile.shape[0]:.3f})', transform=ax.transAxes, fontsize=10, ha='left', va='bottom')
-    ax.legend(loc='upper right', fontsize=10)
+    # SmartPixLabel(ax, 0.05, 0.9, size=14)
+    # ax.text(0.05, 0.86, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=10, color="black", ha='left', va='bottom')
+    SmartPixLabel(ax, 0, 1.0, text=f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", size=12, fontweight='normal', style='normal')
+    # ax.text(0.05, 0.82, f'y-profile matches: {alltrue.shape[0]}/{yprofile.shape[0]} ({alltrue.shape[0]/yprofile.shape[0]:.3f})', transform=ax.transAxes, fontsize=10, ha='left', va='bottom')
+    ax.legend(loc='lower left', fontsize=11, bbox_to_anchor=(0, 0))
     plt.tight_layout()
     plt.savefig('high_pt_fraction_vs_true_pt.pdf', dpi=300, bbox_inches='tight')
     # plt.show()
