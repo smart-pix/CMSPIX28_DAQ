@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 
-def SmartPixLabel(ax, x, y, text=None, color='black', size=14):
+def SmartPixLabel(ax, x, y, text=None, color='black', size=14, fontweight='bold', style='italic'):
     """
     Draw a 'SmartPixel' label on a Matplotlib axis at position (x, y), with an optional text.
 
@@ -16,7 +16,8 @@ def SmartPixLabel(ax, x, y, text=None, color='black', size=14):
     if text:
         label += f" {text}"
     
-    ax.text(x, y, label, transform=ax.transAxes, fontsize=size, color=color, fontweight='bold', style='italic', ha='left', va='bottom')
+    ax.text(x, y, label, transform=ax.transAxes, fontsize=size, color=color, fontweight=fontweight, style=style, ha='left', va='bottom')
+    # ax.text(x, y, label, transform=ax.transAxes, fontsize=size, color=color, ha='left', va='bottom')
 
 def SetTicks(ax, nbinsMajor=5, nbinsMinor=None):
     # Set up ticks

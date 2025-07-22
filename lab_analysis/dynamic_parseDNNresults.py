@@ -93,6 +93,36 @@ print(f"Percentage of matches: {percentage_match:.2f}%")
 # load the true pt values if provided
 if args.true_pt:
 
+    # function to perform analysis of efficiency results
+    def analyzeResults(pt, pt_bins, results):
+        effs, eff_errs = [], []
+        # loop over the pT bins
+        for i in range(len(pt_bins) - 1):
+            in_bin_extracted = (pt >= pt_bins[i]) & (pt < pt_bins[i+1])
+            N = np.sum(in_bin_extracted)
+            if np.sum(in_bin_extracted) > 0:
+                # Check how many were correctly labeled as high pT (label 0)
+                labeled_high_pt = (results[in_bin_extracted] == 0)
+                npass = np.sum(labeled_high_pt)
+                eff = npass / N
+                eff_err = efficiency_error(eff, N)
+                # save
+                effs.append(eff)
+                eff_errs.append(eff_err)
+            else:
+                effs.append(0)
+                eff_errs.append(0)
+        return np.array(effs), np.array(eff_errs)
+        
+    # efficiency error calculation
+    def efficiency_error(eff, N):
+        ''' 
+        See section 2.2.1 https://lss.fnal.gov/archive/test-tm/2000/fermilab-tm-2286-cd.pdf
+        eff = estimate of the efficiency
+        N = sample size
+        '''
+        return np.sqrt(eff * (1 - eff) / N)
+
     # remove last two extra entries
     final_results = final_results[:-2]
     dnn_RTL_out = dnn_RTL_out[:-2]
@@ -151,119 +181,56 @@ if args.true_pt:
     ref_results = np.genfromtxt(ref_results_file, delimiter=',', dtype=int)
     print(f"Loaded {len(ref_results)} reference results from {ref_results_file}", "shape:", ref_results.shape)
 
-    # only consider the test vectors inside of alltrue
-    print("Filtering true_pt and final_results to only include matching test vectors ...")
-    print(true_pt.shape, final_results.shape)
-    
-    # Work with extracted subset (matching test vectors)
-    true_pt_extracted = true_pt[alltrue]
-    final_results_extracted = final_results[alltrue]
-    print(final_results_extracted)
-    dnn_RTL_out_extracted = dnn_RTL_out[alltrue]
-    ref_results_extracted = ref_results[alltrue]
-    print("Extracted shapes:", true_pt_extracted.shape, final_results_extracted.shape)
-
-    # Calculate fraction of correctly labeled high pT particles vs true pT
-    # Create bins for true pT values from -5 to 5
-    pt_bins = np.linspace(-5, 5, 101)
+    # Create bins for true pT values from -4 to 4
+    bins_pos = np.unique(np.concatenate([
+        np.linspace(0, 1, 5, endpoint=False),
+        np.linspace(1, 2, 5, endpoint=False),
+        np.linspace(2, 4, 3, endpoint=True)
+    ]))
+    bins_neg = -1 * bins_pos[::-1]
+    pt_bins = np.unique(np.concatenate([bins_neg, bins_pos]))
     bin_centers = (pt_bins[:-1] + pt_bins[1:]) / 2
-    
-    # For extracted subset
-    asic_fractions_extracted = []
-    offline_fractions_extracted = []
-    ref_results_extracted_fractions = []
-    
-    # For full lists
-    asic_fractions_full = []
-    offline_fractions_full = []
-    ref_results_full_fractions = []
+    bin_widths = np.diff(pt_bins)
 
-    for i in range(len(pt_bins) - 1):
-        # EXTRACTED SUBSET
-        # Find particles in this pT bin with |pT| > 0.2 GeV
-        in_bin_extracted = (true_pt_extracted >= pt_bins[i]) & (true_pt_extracted < pt_bins[i+1])
-        print(f"Extracted bin [{pt_bins[i]:.2f}, {pt_bins[i+1]:.2f}): {np.sum(in_bin_extracted)} particles")
+    # asic results
+    asic_fractions_full, asic_errors_full = analyzeResults(true_pt, pt_bins, final_results)
+    asic_fractions_extracted, asic_errors_extracted = analyzeResults(true_pt[alltrue], pt_bins, final_results[alltrue])
 
-        if np.sum(in_bin_extracted) > 0:
-            # Check how many were correctly labeled as high pT (label 0)
-            labeled_high_pt = (final_results_extracted[in_bin_extracted] == 0)
-            asic_fraction_correct = np.sum(labeled_high_pt) / np.sum(in_bin_extracted)
-            asic_fractions_extracted.append(asic_fraction_correct)
+    # offline results
+    offline_fractions_full, offline_errors_full = analyzeResults(true_pt, pt_bins, dnn_RTL_out)
+    offline_fractions_extracted, offline_errors_extracted = analyzeResults(true_pt[alltrue], pt_bins, dnn_RTL_out[alltrue])
 
-            # do the same for offline results
-            offline_labeled_high_pt = (dnn_RTL_out_extracted[in_bin_extracted] == 0)
-            offline_fraction_correct = np.sum(offline_labeled_high_pt) / np.sum(in_bin_extracted)
-            offline_fractions_extracted.append(offline_fraction_correct)
-
-            # do the same for reference results
-            ref_labeled_high_pt = (ref_results_extracted[in_bin_extracted] == 0)
-            ref_fraction_correct = np.sum(ref_labeled_high_pt) / np.sum(in_bin_extracted)
-            ref_results_extracted_fractions.append(ref_fraction_correct)
-        else:
-            asic_fractions_extracted.append(0)
-            offline_fractions_extracted.append(0)
-            ref_results_extracted_fractions.append(0)
-
-        # FULL LISTS
-        # Find particles in this pT bin with |pT| > 0.2 GeV
-        in_bin_full = (true_pt >= pt_bins[i]) & (true_pt < pt_bins[i+1])
-        print(f"Full bin [{pt_bins[i]:.2f}, {pt_bins[i+1]:.2f}): {np.sum(in_bin_full)} particles")
-
-        if np.sum(in_bin_full) > 0:
-            # Check how many were correctly labeled as high pT (label 0)
-            labeled_high_pt_full = (final_results[in_bin_full] == 0)
-            asic_fraction_correct_full = np.sum(labeled_high_pt_full) / np.sum(in_bin_full)
-            asic_fractions_full.append(asic_fraction_correct_full)
-
-            # do the same for offline results
-            offline_labeled_high_pt_full = (dnn_RTL_out[in_bin_full] == 0)
-            offline_fraction_correct_full = np.sum(offline_labeled_high_pt_full) / np.sum(in_bin_full)
-            offline_fractions_full.append(offline_fraction_correct_full)
-
-            # do the same for reference results
-            print(ref_results.shape, in_bin_full.shape)
-            ref_labeled_high_pt_full = (ref_results[in_bin_full] == 0)
-            ref_fraction_correct_full = np.sum(ref_labeled_high_pt_full) / np.sum(in_bin_full)
-            ref_results_full_fractions.append(ref_fraction_correct_full)
-        else:
-            asic_fractions_full.append(0)
-            offline_fractions_full.append(0)
-            ref_results_full_fractions.append(0)
-
-    # Use extracted subset for plotting (as in original code)
-    asic_fractions = asic_fractions_extracted
-    offline_fractions = offline_fractions_extracted
-
-        # if fractions[-1] == 0:
-        #     fractions[-1] = None
+    # reference results
+    ref_fractions_full, ref_errors_full = analyzeResults(true_pt, pt_bins, ref_results)
+    ref_fractions_extracted, ref_errors_extracted = analyzeResults(true_pt[alltrue], pt_bins, ref_results[alltrue])
 
     # Create the plot
     fig, ax = plt.subplots(figsize=(6,6))
-    print(bin_centers)
-    print(asic_fractions)
-    print(offline_fractions)
-    ax.plot(bin_centers, ref_results_full_fractions, 'd', linewidth=1, markersize=4, color="black", label="Layer7 Ref Full Stat.")
-    # ax.plot(bin_centers, ref_results_extracted_fractions, 'D', linewidth=1, markersize=4, color="green", label="Layer7 Ref")
-    # ax.plot(bin_centers, asic_fractions, '-o', linewidth=1, markersize=4, color="red", label="ROIC")
-    # ax.plot(bin_centers, offline_fractions, '1', linewidth=1, markersize=6, color="blue", label="DNN RTL")    
-    # ax.stairs(fractions, pt_bins, linewidth=2, color="black", alpha=0.8)
+    
+    # plot error bars
+    ax.errorbar(bin_centers, ref_fractions_full, xerr=bin_widths/2, yerr=asic_errors_full, fmt='o', linewidth=1, markersize=4, color="black", label=f"Layer7 Ref Full Stat.") #Full Stat.") # "d"
+    ax.errorbar(bin_centers, ref_fractions_extracted, xerr=bin_widths/2, yerr=ref_errors_full, fmt='o', linewidth=1, markersize=4, color="green", label="Layer7 Ref") # "D"
+    ax.errorbar(bin_centers, asic_fractions_extracted, xerr=bin_widths/2, yerr=asic_errors_extracted, fmt='o', linewidth=1, markersize=4, color="red", label=f"ROIC ({alltrue.shape[0]}/{yprofile.shape[0]})", alpha=0.5) # f"ROIC ({alltrue.shape[0]}/{yprofile.shape[0]})"
+    ax.errorbar(bin_centers, offline_fractions_extracted, xerr=bin_widths/2, yerr=offline_errors_extracted, fmt='1', linewidth=1, markersize=6, color="blue", label="DNN RTL")    
+    
+    # set plot styles
     ax.set_xlabel(r'True $p_{\mathrm{T}}$ [GeV]')
-    ax.set_ylabel(r'Predicts high $p_{\mathrm{T}}$ (0) / particles in bin')
-    # ax.set_title('DNN Performance: Fraction of correctly labeled high pT particles vs true pT')
+    # ax.set_ylabel(r'Predicts high $p_{\mathrm{T}}$ (0) / particles in bin')
+    ax.set_ylabel(r'Fraction predicted high $p_{\mathrm{T}}$ (> 0.2 GeV)')
     ax.grid(True, alpha=0.3)
-    ax.set_ylim(-0.05, 1.3)
-    ax.set_xlim(-5, 5)
+    ax.set_ylim(0, 1.05)
+    ax.set_xlim(-4, 4)
     ax.tick_params(which='minor', length=4)
     ax.tick_params(which='major', length=6)
     ax.xaxis.set_minor_locator(MultipleLocator(0.2))
     ax.yaxis.set_minor_locator(MultipleLocator(0.05))
     # Add text annotation with matching statistics
-    SmartPixLabel(ax, 0.05, 0.9, size=18)
-    ax.text(0.05, 0.86, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
-    ax.text(0.05, 0.82, f'y-profile matches: {alltrue.shape[0]}/{yprofile.shape[0]} ({alltrue.shape[0]/yprofile.shape[0]:.3f})', transform=ax.transAxes, fontsize=10, ha='left', va='bottom')
-    ax.legend(loc='upper right', fontsize=10)
+    # SmartPixLabel(ax, 0.05, 0.9, size=14)
+    # ax.text(0.05, 0.86, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=10, color="black", ha='left', va='bottom')
+    SmartPixLabel(ax, 0, 1.0, text=f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", size=12, fontweight='normal', style='normal')
+    # ax.text(0.05, 0.82, f'y-profile matches: {alltrue.shape[0]}/{yprofile.shape[0]} ({alltrue.shape[0]/yprofile.shape[0]:.3f})', transform=ax.transAxes, fontsize=10, ha='left', va='bottom')
+    ax.legend(loc='lower left', fontsize=11, bbox_to_anchor=(0, 0))
     plt.tight_layout()
     plt.savefig('high_pt_fraction_vs_true_pt.pdf', dpi=300, bbox_inches='tight')
-    # plt.show()
                                     
 
