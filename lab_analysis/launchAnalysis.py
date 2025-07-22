@@ -42,6 +42,6 @@ if __name__ == "__main__":
             if "MatrixPulseGenFall" in folder:
                 subprocess.run(["python", "MatrixPulseGenFall.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
             if "MatrixCvG" in folder:
-                subprocess.run(["python", "MatrixVTH.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
+                subprocess.run(["python", "MatrixCvG.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error processing {folder}: {e}")
