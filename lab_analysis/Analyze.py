@@ -154,16 +154,43 @@ def loadData(info, files):
 
     return v_asics, nelectron_asics, data
 
-# helper function to get features from the data
-def getFeatures(data, nelectron_asics, info, doFit):
+# utility function to create a list of test information to append to features
+def testInfoForFeatures(info):
+    """
+    Helper function to create a list of test information for features.
+    This is used to create the features array.
+    """
+    t_ = []
+    if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
+        t_.append(info["nPix"])
+    elif info["testType"] == "MatrixVTH":
+        t_.append(info["VTH"])
+    elif info["testType"] == "MatrixCvG":
+        t_.append(info["nPix"])
+        t_.append(info["vth"])
+    elif info["testType"] == "MatrixCalibration":
+        t_.append(-1)
+    elif info["testType"] == "MatrixInjDly":
+        t_.append(info["injDly"])
+    elif info["testType"] == "MatrixPulseGenFall":
+        t_.append(info["FallTime"])
+    else:
+        t_.append(-1)
     
-    # filter threshold to analyse the data
-    sCutHi = 0.8
-    sCutLo = 0.2
-    stds_threshold = 200
+    return t_
 
+# helper function to get features from the data
+def getFeatures(data, nelectron_asics, info, 
+                sCutHi = 0.8, # filter upper threshold to analyse the data
+                sCutLo = 0.2, # filter lower threshold to analyse the data
+                stds_threshold = 200, # filter stds threshold to analyse the data
+                doFit = False, # run the fitting 
+                p0s = [[400, 40], [1200, 40], [2500, 40]] # starting p0s for bit 0, 1, 2
+    ):
+    
     # loop over bits
     features = []
+    
     # loop over settings
     for iS in tqdm(range(data.shape[0]), desc="Processing", unit="step"): # range(data.shape[0]):
         
@@ -187,9 +214,6 @@ def getFeatures(data, nelectron_asics, info, doFit):
 
                 # fit and get 50% values
                 if goodBit:
-            
-                    # starting p0s for bit 0, 1, 2
-                    p0s = [[400, 40], [1200, 40], [2500, 40]]
 
                     # fit
                     if doFit:
@@ -219,23 +243,8 @@ def getFeatures(data, nelectron_asics, info, doFit):
                 # else:
                 #    print("Did not pass threshold cuts: ", bit[0], bit[-1], sCutLo, sCutHi)
 
-                # append
-                t_ = []
-                if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
-                    t_.append(info["nPix"])
-                elif info["testType"] == "MatrixVTH":
-                    t_.append(info["VTH"])
-                elif info["testType"] == "MatrixCvG":
-                    t_.append(info["nPix"])
-                    t_.append(info["vth"])
-                elif info["testType"] == "MatrixCalibration":
-                    t_.append(-1)
-                elif info["testType"] == "MatrixInjDly":
-                    t_.append(info["injDly"])
-                elif info["testType"] == "MatrixPulseGenFall":
-                    t_.append(info["FallTime"])
-                else:
-                    t_.append(-1)
+                # append information based on test type
+                t_ = testInfoForFeatures(info)
                 # add other entries
                 t_ += [fiftyPerc_, mean_, std_]
         
