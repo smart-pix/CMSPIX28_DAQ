@@ -54,7 +54,6 @@ for iB in range(nBits):
             if value > 0 and vth > 0:
                 x.append(vth)
                 y.append(value)
-            print(f"Pixel {iP}, Bit {iB}: {len(x)} valid points")
         x = np.array(x)
         y = np.array(y)
 
@@ -96,3 +95,9 @@ plt.ylabel("Count")
 plt.grid(True)
 plt.savefig(os.path.join(outDir, "CvG_Histogram_Combined.pdf"))
 plt.close()
+
+# Save CvG data as (iP, iB, CvG)
+CvG_array = np.array(store_CvG)
+save_path = os.path.join(outDir, "CvG_data.npy")
+np.save(save_path, CvG_array)
+print(f"Saved CvG data to: {save_path}")

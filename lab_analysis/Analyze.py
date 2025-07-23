@@ -24,7 +24,7 @@ def handleInput(inFilePath):
     if "MatrixNPix" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "nPix*")
     elif "MatrixVTH" in inPathList and "*" not in inPathList:
-        inPathList = os.path.join(inPathList, "VTH*")
+        inPathList = os.path.join(inPathList, "vth*")
     elif "MatrixInjDly" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "injDly*")
     elif "MatrixPulseGenFall" in inPathList and "*" not in inPathList:
@@ -164,7 +164,7 @@ def testInfoForFeatures(info):
     if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
         t_.append(info["nPix"])
     elif info["testType"] == "MatrixVTH":
-        t_.append(info["VTH"])
+        t_.append(info["vth"])
     elif info["testType"] == "MatrixCvG":
         t_.append(info["nPix"])
         t_.append(info["vth"])
@@ -190,7 +190,8 @@ def getFeatures(data, nelectron_asics, info,
     
     # loop over bits
     features = []
-    
+    print("DATA")
+    print(data)
     # loop over settings
     for iS in tqdm(range(data.shape[0]), desc="Processing", unit="step"): # range(data.shape[0]):
         
@@ -211,6 +212,9 @@ def getFeatures(data, nelectron_asics, info,
                 # goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
                 # goodBit = bit[0] < sCutLo and bit[-1] > sCutHi
                 goodBit = bit[-1] > sCutHi
+                print("GOODBIT")
+                print(bit[-1], sCutHi)
+                print(goodBit)
 
                 # fit and get 50% values
                 if goodBit:
@@ -301,7 +305,7 @@ def analyze_MatrixCvG(config):
 # main analysis driver function
 def analysis(config):
 
-    info = inspectPath(inPath)
+    info = inspectPath(config["inPath"])
     print(info)
 
     # do custom analysis based on test type
@@ -312,8 +316,8 @@ def analysis(config):
     # default analysis settings
     elif info["testType"] in ["Single", "MatrixNPix", "MatrixVTH", "MatrixInjDly", "MatrixPulseGenFall", "MatrixCalibration"]:
         
-        info = inspectPath(inPath)
-        files = getFileList(inPath)
+        info = inspectPath(config["inPath"])
+        files = getFileList(config["inPath"])
         v_asics, nelectron_asics, data = loadData(info, files)
 
         # format the data
@@ -325,8 +329,8 @@ def analysis(config):
             print("Leaving data shape as it is for test type: ", info["testType"])
 
         # do analysis
-        features = getFeatures(data, nelectron_asics, info, config["doFit"])
-
+        features = getFeatures(data, nelectron_asics, info, doFit=config["doFit"])
+        print(features)
         return features, nelectron_asics, data
 
     return None, None, None
