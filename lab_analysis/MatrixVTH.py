@@ -54,7 +54,7 @@ pltConfig["scurve_std"] = {
     "ylabel": r"S-Curve $\sigma$ [e$^{-}$]",
     "idx" : 3,
     "fit" : None,
-    "vthPerBit" : True,
+    "vthPerBit" : False,
     "legLoc" : "upper right"
 }
 
@@ -65,7 +65,7 @@ def linear_func(x, a, b):
 # VTH_{0-2} per bit from VTH
 def vth_to_vthPerBit(vth, iB):
     scale = [50, 100, 200][iB]
-    return vth * scale / 1250
+    return vth #* scale / 1250
 
 def angleFromSlope(m, ax=None):
     if ax is None:
