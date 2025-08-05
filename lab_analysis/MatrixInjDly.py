@@ -32,7 +32,7 @@ os.makedirs(outDir, exist_ok=True)
 # os.chmod(outDir, mode=0o777)
 
 # plot config
-xlabel = "Injection Delay [2.5 ns steps]"
+xlabel = "Injection Delay [ns]" #"Injection Delay [2.5 ns steps]"
 pltConfig = {
     "nelectron_asic_50perc" : {
         "xlabel": xlabel,
@@ -110,7 +110,7 @@ for name, config in pltConfig.items():
         ax.text(0.05, 0.80, f"Pixel {int(info['nPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
 
         # save fig
-        outFileName = os.path.join(outDir, f"MatrixInjDly_{name}_Setting{iS}_Pixel{int(info['nPix'])}.pdf")
+        outFileName = os.path.join(outDir, f"MatrixBxCLKDly_{name}_Setting{iS}_Pixel{int(info['nPix'])}.pdf")
         print(f"Saving file to {outFileName}")
         plt.savefig(outFileName, bbox_inches='tight')
         plt.close()

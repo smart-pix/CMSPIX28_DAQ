@@ -24,9 +24,13 @@ def handleInput(inFilePath):
     if "MatrixNPix" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "nPix*")
     elif "MatrixVTH" in inPathList and "*" not in inPathList:
-        inPathList = os.path.join(inPathList, "VTH*")
+        inPathList = os.path.join(inPathList, "vth*")
+    elif "MatrixIbias" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "Ibias*")
     elif "MatrixInjDly" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "injDly*")
+    elif "MatrixBxCLKDly" in inPathList and "*" not in inPathList:
+        inPathList = os.path.join(inPathList, "MatrixBxCLKDly*")
     elif "MatrixPulseGenFall" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "FallTime*")
     elif "MatrixCvG" in inPathList and "*" not in inPathList:
@@ -35,7 +39,7 @@ def handleInput(inFilePath):
     # glob
     inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
-    
+
     # Sort the list based on the number in the final directory
     try:
         def extract_number(path):
@@ -77,17 +81,35 @@ def inspectPath(inPath):
     info["date"] = [i for i in split if "2025" in i][0].split("_")[0]
     info["time"] = [i for i in split if "2025" in i][0].split("_")[1]
     info["testType"] = [i for i in split if "2025" in i][0].split("_")[2]
+
     # now get all the other configurations with number values
     matches = re.findall(r'([a-zA-Z]+)([0-9.]+)', inPath)
     for match in matches:
         info[match[0]] = float(match[1])
+
+    NoneMatches = re.findall(r'([a-zA-Z]+)(None)', inPath)
+    for match in NoneMatches:
+        info[match[0]] = None
     # handle unique cases
-    if "injDly" in split[-1]:
-        info["injDly"] = int(split[-1].split("injDly")[1], 16)
+
+    # if "injDly" in split[-1]:
+    #     info["injDly"] = int(split[-1].split("injDly")[1], 16)
+    if "nPixNone" in split[-1]:
+        info["nPix"] = None
+
+
+    if "MatrixinjDly" in split[-1]:
+        injDly = float(split[-1].split("injDly")[1])
+        injDly = round(injDly, abs(int(f"{injDly:.1e}".split("e")[1])) + 1) # handle float precision
+        info["injDly"] = injDly
     if "FallTime" in split[-1]:
         FallTime = float(split[-1].split("FallTime")[1])
         FallTime = round(FallTime, abs(int(f"{FallTime:.1e}".split("e")[1])) + 1) # handle float precision
         info["FallTime"] = FallTime
+    if "MatrixBxCLKDly" in split[-1]:
+        MatrixBxCLKDly = float(split[-1].split("MatrixBxCLKDly")[1])
+        MatrixBxCLKDly = round(MatrixBxCLKDly, abs(int(f"{MatrixBxCLKDly:.1e}".split("e")[1])) + 1) # handle float precision
+        info["MatrixBxCLKDly"] = MatrixBxCLKDly
     # convert to mV from V
     if "vMin" in info.keys():
         info["vMin"] *= VtomV  
@@ -132,7 +154,11 @@ def loadData(info, files):
                 x = f["data"]
                 # only take pixel we want
                 x = x.reshape(-1, NPIXEL, NBIT)
-                x = x[:,int(info["nPix"])]
+                if info["nPix"] is not None:
+                    x = x[:, int(info["nPix"])]  # shape: (samples, bits)
+                    x = np.expand_dims(x, axis=1)  # add pixel dimension back: (samples, 1, bits)
+
+
         else:
             print("Not recognized file extension: ", f)
 
@@ -148,6 +174,11 @@ def loadData(info, files):
         data.append(frac)
 
     # convert
+    if info["nPix"] == None:
+        Pgain = 1 # input cap
+    else:
+        Pgain = 1
+    print("pgain: ", Pgain)
     v_asics = np.array(v_asics)
     nelectron_asics = v_asics / VtomV * Pgain * Cin / Qe # divide by 1000 is to convert mV to Volt
     data = np.stack(data, -1)
@@ -156,15 +187,17 @@ def loadData(info, files):
 
 # utility function to create a list of test information to append to features
 def testInfoForFeatures(info):
+    # print(info["nPix"])
     """
     Helper function to create a list of test information for features.
     This is used to create the features array.
     """
     t_ = []
-    if info["testType"] == "MatrixNPix" or info["testType"] == "Single":
-        t_.append(info["nPix"])
+    if info["testType"] in ["MatrixNPix", "Single"]:
+        t_.append(info["nPix"] if info["nPix"] is not None else -1)
+
     elif info["testType"] == "MatrixVTH":
-        t_.append(info["VTH"])
+        t_.append(info["vth"])
     elif info["testType"] == "MatrixCvG":
         t_.append(info["nPix"])
         t_.append(info["vth"])
@@ -172,6 +205,10 @@ def testInfoForFeatures(info):
         t_.append(-1)
     elif info["testType"] == "MatrixInjDly":
         t_.append(info["injDly"])
+    elif info["testType"] == "MatrixIbias":
+        t_.append(info["Ibias"])
+    elif info["testType"] == "MatrixBxCLKDly":
+        t_.append(info["MatrixBxCLKDly"])
     elif info["testType"] == "MatrixPulseGenFall":
         t_.append(info["FallTime"])
     else:
@@ -190,7 +227,6 @@ def getFeatures(data, nelectron_asics, info,
     
     # loop over bits
     features = []
-    
     # loop over settings
     for iS in tqdm(range(data.shape[0]), desc="Processing", unit="step"): # range(data.shape[0]):
         
@@ -301,7 +337,7 @@ def analyze_MatrixCvG(config):
 # main analysis driver function
 def analysis(config):
 
-    info = inspectPath(inPath)
+    info = inspectPath(config["inPath"])
     print(info)
 
     # do custom analysis based on test type
@@ -310,23 +346,35 @@ def analysis(config):
         return features, nelectron_asics, data
     
     # default analysis settings
-    elif info["testType"] in ["Single", "MatrixNPix", "MatrixVTH", "MatrixInjDly", "MatrixPulseGenFall", "MatrixCalibration"]:
+    elif info["testType"] in ["Single", "MatrixNPix", "MatrixVTH", "MatrixIbias", "MatrixInjDly", "MatrixBxCLKDly", "MatrixPulseGenFall", "MatrixCalibration"]:
         
-        info = inspectPath(inPath)
-        files = getFileList(inPath)
+        info = inspectPath(config["inPath"])
+        files = getFileList(config["inPath"])
         v_asics, nelectron_asics, data = loadData(info, files)
 
         # format the data
-        if info["testType"] in ["Single", "MatrixNPix"]:
+        if info["testType"] in ["MatrixNPix"]:
             data = data.reshape(1, 1, NBIT, data.shape[1])
-        elif info["testType"] in ["MatrixVTH", "MatrixInjDly", "MatrixPulseGenFall"]:
+
+        if info["testType"] == "Single":
+            if info["nPix"] is not None:
+                # Single pixel case: shape = (1, 1, NBIT, VASIC)
+                data = data.reshape(1, 1, NBIT, data.shape[1])
+            else:
+                print("Data shape before transpose:", data.shape)
+                # All pixels: data shape = (samples, pixels, bits)
+                # Reshape to (1, pixels, bits, samples)
+                data = np.transpose(data, (1, 2, 3, 0))  # (pixels, bits, samples)
+                data = data.reshape(1, data.shape[0], data.shape[1], data.shape[2])  # (1, nPixel, nBit, nVasic)
+
+
+        elif info["testType"] in ["MatrixVTH", "MatrixIbias", "MatrixInjDly", "MatrixBxCLKDly", "MatrixPulseGenFall"]:
             data = data.reshape(1, 1, NBIT, data.shape[1])
         else:
             print("Leaving data shape as it is for test type: ", info["testType"])
 
         # do analysis
-        features = getFeatures(data, nelectron_asics, info, config["doFit"])
-
+        features = getFeatures(data, nelectron_asics, info, doFit=config["doFit"])
         return features, nelectron_asics, data
 
     return None, None, None

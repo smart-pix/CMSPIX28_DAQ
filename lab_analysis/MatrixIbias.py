@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 import mplhep as hep
 import argparse
-
+from matplotlib.ticker import MaxNLocator
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
@@ -34,23 +34,23 @@ os.makedirs(outDir, exist_ok=True)
 # plot config
 pltConfig = {}
 pltConfig["nelectron_asic_50perc"] = {
-    "xlabel": r"V$_{\mathrm{TH}}$ Per Bit [mV]", 
+    "xlabel": r"I$_{\mathrm{BIAS}}$ Per Bit [uA]", 
     "ylabel": r"S-Curve Half Max [e$^{-}$]", 
     "idx" : 1,
-    "fit" : "linear",
-    "vthPerBit" : True,
+    "fit" : None,
+    "vthPerBit" : False,
     "legLoc" : "lower right"
 }
 pltConfig["scurve_mean"] = {
-    "xlabel": r"V$_{\mathrm{TH}}$ Per Bit [mV]", 
+    "xlabel": r"I$_{\mathrm{BIAS}}$ Per Bit [uA]",  
     "ylabel": r"S-Curve $\mu$ [e$^{-}$]",
     "idx" : 2,
-    "fit" : "linear",
-    "vthPerBit" : True,
+    "fit" : None,
+    "vthPerBit" : False,
     "legLoc" : "lower right"
 }
 pltConfig["scurve_std"] = {
-    "xlabel": r"V$_{\mathrm{TH}}$ Per Bit [mV]",
+    "xlabel": r"I$_{\mathrm{BIAS}}$ Per Bit [uA]", 
     "ylabel": r"S-Curve $\sigma$ [e$^{-}$]",
     "idx" : 3,
     "fit" : None,
@@ -61,6 +61,11 @@ pltConfig["scurve_std"] = {
 # Perform linear fit
 def linear_func(x, a, b):
     return a * x + b
+
+def ibias_transform_func(x):
+    a = 69.68
+    b = -22.721
+    return a * x**2 + b * x
 
 # VTH_{0-2} per bit from VTH
 def vth_to_vthPerBit(vth, iB):
@@ -105,9 +110,12 @@ for name, config in pltConfig.items():
         
         # set up figure
         fig, ax = plt.subplots(figsize=(6,6))
+        
         ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
         ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
-        
+        custom_ticks = [0, 1, 2, 3, 4, 5, 10, 15, 20]
+        # ax.set_xticklabels([str(tick) for tick in custom_ticks])
+        ax.xaxis.set_minor_locator(ticker.NullLocator())
         # set y limit
         maxValue = np.max(features[:,:,:,config["idx"]])
         ylimMax = 1.35 * maxValue
@@ -122,7 +130,9 @@ for name, config in pltConfig.items():
             y_ = features[iS:,:,iB,config["idx"]].flatten()
             mask = y_ > 0
             # plot
-            ax.plot(x_[mask], y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
+            x_transformed = ibias_transform_func(x_[mask])
+
+            ax.plot(x_transformed, y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
         
             # linear fit
             if config["fit"] == "linear":
@@ -144,7 +154,11 @@ for name, config in pltConfig.items():
                     y_text += 0.1*y_text
                     # print text label
                     ax.text(x_text, y_text, fit_label, fontsize=12, color=color[iB], ha='left', va='bottom', rotation=angle, alpha=0.5)
-
+            elif config["fit"] == "ibias":
+                popt, pcov = curve_fit(ibias_func, x_[mask], y_[mask])
+                a, b = popt
+                ax.plot(x_[mask], ibias_func(x_[mask], *popt), linestyle='--', color = color[iB], alpha=0.5)
+                print(f"Unknown fit type {config['fit']} for feature {name}. Skipping fitting.")
         # make legend
         legend = ax.legend(fontsize=15, loc = "upper right") #bbox_to_anchor=(0.03, 0.85), loc='upper left')
         for text in legend.get_texts():
@@ -158,8 +172,19 @@ for name, config in pltConfig.items():
         ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
         ax.text(0.05, 0.80, f"Pixel {int(info['nPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
 
+        # Custom x-axis ticks for granularity at low values
+
+        # Set exact major ticks
+
+        ax.set_xticks(custom_ticks)
+        ax.set_xlim(0, 21)
+
+        # remove sub ticks
+        ax.tick_params(axis='x', which='minor', bottom=False)
+
+
         # save fig
-        outFileName = os.path.join(outDir, f"MatrixVTH_{name}_Setting{iS}_Pixel{int(info['nPix'])}.pdf")
+        outFileName = os.path.join(outDir, f"MatrixIbias_{name}_Setting{iS}_Pixel{int(info['nPix'])}.pdf")
         print(f"Saving file to {outFileName}")
         plt.savefig(outFileName, bbox_inches='tight')
         plt.close()
