@@ -46,8 +46,8 @@ pltConfig["nelectron_asic_50perc_perBit"] = {
     "xlabel": r"S-Curve Half Max [e$^{-}$]", 
     "ylabel": r"N$_{\mathrm{Bits}}$",
     "binConfigs": [[0, 2000, 101], [800, 3000, 111], [2000, 4500, 126]], # bit 0, bit 1, bit 2
-    "p0s": [[50, 400, 100], [50, 1300, 100], [50, 3300, 100]], # bit 0, bit 1, bit 2
-    "fitRange" : [[250,550], [1100, 1600], [3000, 3500]],
+    "p0s": [[50, 400, 100], [50, 1300, 100], [50, 2000, 100]], # bit 0, bit 1, bit 2
+    "fitRange" : [[250,550], [1100, 1600], [1000, 3500]],
     "ylim": [0, 35],
     "idx" : 1,
 }

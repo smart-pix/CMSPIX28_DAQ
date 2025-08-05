@@ -2,6 +2,7 @@ import glob
 import subprocess
 import argparse
 import os
+from Analyze import inspectPath
 
 if __name__ == "__main__":
 
@@ -24,6 +25,8 @@ if __name__ == "__main__":
     # Loop over folders and run commands
     for folder in folders:
         print(f"Processing folder: {folder}")
+        info = inspectPath(folder)
+
         try:
             Analyze = ["python", "Analyze.py", "-i", folder]
             if args.doFit:
@@ -32,12 +35,17 @@ if __name__ == "__main__":
             subprocess.run(["python", "SCurve.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
             if "MatrixCalibration" in folder:
                 subprocess.run(["python", "SCurveFWCal.py", "-i", folder, "--combine"], check=True)
+            if info.get("testType") == "Single" and info.get("nPix") is None:
+                subprocess.run(["python", "MatrixNPix.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
+                # subprocess.run(["python", "MatrixNPix2D.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
             if "MatrixNPix" in folder:
                 subprocess.run(["python", "MatrixNPix.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
                 subprocess.run(["python", "MatrixNPix2D.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
             if "MatrixVTH" in folder:
                 subprocess.run(["python", "MatrixVTH.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
-            if "MatrixInjDly" in folder:
+            if  "MatrixIbias" in folder:
+                subprocess.run(["python", "MatrixIbias.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
+            if "MatrixInjDly" in folder or "MatrixBxCLKDly" in folder:
                 subprocess.run(["python", "MatrixInjDly.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
             if "MatrixPulseGenFall" in folder:
                 subprocess.run(["python", "MatrixPulseGenFall.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
