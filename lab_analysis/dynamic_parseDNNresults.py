@@ -1,10 +1,18 @@
 import numpy as np
 import argparse
 
+class SaveOnlyAction(argparse.Action):
+    def __call__(self, parser, namespace, values, option_string=None):
+        if values is None:
+            setattr(namespace, self.dest, 20)  # Default to 20 if no value is provided
+        else:
+            setattr(namespace, self.dest, int(values))
+
 parser = argparse.ArgumentParser(description='Parse DNN results from CSV files')
 parser.add_argument("-r", "--readout", type=str, default='./readout.csv', help='Path to readout CSV file')
 parser.add_argument("-d", "--dnn_rtl", type=str, default='./dnn_RTL_out.csv', help='Path to DNN RTL output CSV file')
 parser.add_argument("-p", "--true_pt", type=str, default=None, help='Path to true pt values for inputs')
+parser.add_argument("-s", "--save-only", nargs="?", type=int, action=SaveOnlyAction, default=None, help="If set, only save the final results without evaluating accuracy. Pass the time stamp parameter at which the DNN output is parsed. Defaults to 20 if no value is provided.")
 args = parser.parse_args()
 
 dnn0 = [0,0]
@@ -35,6 +43,15 @@ def eval_dnn_result(results_file, bit_iter):
     return final_results
 
 results_file_to_evaluate = np.genfromtxt(args.readout, delimiter=',', dtype=int)
+if(args.save_only is not None):
+    # If save-only is specified, we only save the results at the given time stamp and exit
+    print(f"Saving results at time stamp {args.save_only} as --save-only parameter has been passed.")
+    final_results = eval_dnn_result(results_file_to_evaluate, args.save_only)
+    np.savetxt('final_results.csv', final_results, delimiter=',', fmt='%d')
+    np.save('final_results.npy', final_results)
+    print(f"Results saved at time stamp {args.save_only}. Exiting without further evaluation.\nTo evaluate accuracy omit the --save-only parameter and pass the RTL file.")
+    exit(0)
+
 results_file = results_file_to_evaluate[:200]
 
 dnn_RTL_out = np.genfromtxt(args.dnn_rtl, delimiter=',', dtype=int)
@@ -75,6 +92,7 @@ print("Best score = ", np.min(score), ", and time stamp of best score = ", np.ar
 print("Passing time stamp = ", np.argmin(score) + 1, "(evaluating at next time stamp to ensure evaluation in a safe output time range of dnn0 and dnn1).")
 final_results = eval_dnn_result(results_file_to_evaluate, np.argmin(score)+1)
 np.savetxt('final_results.csv', final_results, delimiter=',', fmt='%d')
+np.save('final_results.npy', final_results)
 
 assert final_results.shape == dnn_RTL_out.shape
 
@@ -233,4 +251,5 @@ if args.true_pt:
     plt.tight_layout()
     plt.savefig('high_pt_fraction_vs_true_pt.pdf', dpi=300, bbox_inches='tight')
                                     
+
 
