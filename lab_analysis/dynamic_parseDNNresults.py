@@ -34,7 +34,9 @@ def eval_dnn_result(results_file, bit_iter):
         msb = dnn1_clipped[bit_iter]
         event_result = [msb, lsb]
         if event_result not in possible_dnn_outputs:
-            raise ValueError(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
+            # raise ValueError(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
+            print(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
+            final_results.append(-1)
         else:
             matching_index = possible_dnn_outputs.index(event_result)
             final_results.append(matching_index)
