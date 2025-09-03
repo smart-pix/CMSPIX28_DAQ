@@ -168,20 +168,20 @@ for name, config in pltConfig.items():
         SetTicks(ax)
 
         # add label and text
-        SmartPixLabel(ax, 0.05, 0.9, size=22)
-        ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
-        ax.text(0.05, 0.80, f"Pixel {int(info['nPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
-
+        # SmartPixLabel(ax, 0.05, 0.9, size=22)
+        # ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        # ax.text(0.05, 0.80, f"Pixel {int(info['nPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+        SmartPixLabel(ax, 0, 1.0, text=f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", size=12, fontweight='normal', style='normal')
+        
         # Custom x-axis ticks for granularity at low values
 
         # Set exact major ticks
-
         ax.set_xticks(custom_ticks)
         ax.set_xlim(0, 21)
 
         # remove sub ticks
-        ax.tick_params(axis='x', which='minor', bottom=False)
-
+        ax.tick_params(axis='x', which='minor', bottom=False, top=False)
+        ax.tick_params(axis='x', which='major', bottom=True, top=True)
 
         # save fig
         outFileName = os.path.join(outDir, f"MatrixIbias_{name}_Setting{iS}_Pixel{int(info['nPix'])}.pdf")
