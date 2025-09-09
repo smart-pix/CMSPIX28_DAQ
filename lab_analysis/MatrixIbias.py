@@ -118,7 +118,8 @@ for name, config in pltConfig.items():
         ax.xaxis.set_minor_locator(ticker.NullLocator())
         # set y limit
         maxValue = np.max(features[:,:,:,config["idx"]])
-        ylimMax = 1.35 * maxValue
+        yscale = 1 # 1.35
+        ylimMax = yscale * maxValue
         ax.set_ylim(0, ylimMax)
 
         for iB in range(3):
@@ -177,7 +178,7 @@ for name, config in pltConfig.items():
 
         # Set exact major ticks
         ax.set_xticks(custom_ticks)
-        ax.set_xlim(0, 21)
+        ax.set_xlim(0, 5) #21)
 
         # remove sub ticks
         ax.tick_params(axis='x', which='minor', bottom=False, top=False)

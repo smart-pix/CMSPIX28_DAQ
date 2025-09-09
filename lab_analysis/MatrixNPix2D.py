@@ -96,8 +96,11 @@ for iS in range(features.shape[0]):
             for i in range(len(grid)):
                 for j in range(len(grid[i])):
                     pixel_number = grid[i][j]
-                    output_array[len(grid)-1-i][j] = bit[bit[:, 0] == pixel_number, fIdx] # set this so that the order is correct top to bottom len(grid)-1-i
-        
+                    if pixel_number in bit[:, 0]:
+                        output_array[len(grid)-1-i][j] = bit[bit[:, 0] == pixel_number, fIdx] # set this so that the order is correct top to bottom len(grid)-1-i
+                    else:
+                        output_array[len(grid)-1-i][j] = -999
+
             # if value is <0 then bit failed so put -np.nan
             output_array[output_array<0] = -np.nan
 
