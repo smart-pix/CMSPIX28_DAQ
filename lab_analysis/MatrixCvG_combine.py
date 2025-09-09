@@ -14,7 +14,7 @@ conf = {
         "path" : "/mnt/local/CMSPIX28/Scurve/data/ChipVersion1_ChipID17_SuperPix1/2025.07.02_17.17.45_MatrixCvG_vMin0.001_vMax0.400_vStep0.00100_nSample1365.000_vdda0.900_BXCLKf10.00_BxCLKDly45.00_injDly75.00_Ibias0.600/plots/CvG_data.npy"
     },
     "SP2" : {
-        "path" : "/mnt/local/CMSPIX28/Scurve/data/ChipVersion1_ChipID17_SuperPix2/2025.06.24_10.59.40_MatrixCvG_vMin0.001_vMax0.400_vStep0.00100_nSample1365.000_vdda0.900_BXCLKf10.00_BxCLKDly45.00_injDly75.00_vth0-0.031_vth1-0.031_vth2-0.031/plots/CvG_data.npy"
+        "path" : "/mnt/local/CMSPIX28/Scurve/data/ChipVersion1_ChipID17_SuperPix2/2025.09.07_08.55.23_MatrixCvG_vMin0.001_vMax0.400_vStep0.00100_nSample1365.000_vdda0.900_BXCLKf10.00_BxCLKDly45.00_injDly75.00_Ibias0.600/plots/CvG_data.npy"
     }
 }
 
