@@ -1,5 +1,8 @@
 import numpy as np
 import argparse
+from sklearn.metrics import confusion_matrix
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 class SaveOnlyAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -34,7 +37,9 @@ def eval_dnn_result(results_file, bit_iter):
         msb = dnn1_clipped[bit_iter]
         event_result = [msb, lsb]
         if event_result not in possible_dnn_outputs:
-            raise ValueError(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
+            print("Impossible DNN output reached.")
+            final_results.append(-1)
+            #raise ValueError(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
         else:
             matching_index = possible_dnn_outputs.index(event_result)
             final_results.append(matching_index)
@@ -43,6 +48,7 @@ def eval_dnn_result(results_file, bit_iter):
     return final_results
 
 results_file_to_evaluate = np.genfromtxt(args.readout, delimiter=',', dtype=int)
+# Output DNN results based on time-stamp guess when RTL file has not been produced
 if(args.save_only is not None):
     # If save-only is specified, we only save the results at the given time stamp and exit
     print(f"Saving results at time stamp {args.save_only} as --save-only parameter has been passed.")
@@ -52,6 +58,7 @@ if(args.save_only is not None):
     print(f"Results saved at time stamp {args.save_only}. Exiting without further evaluation.\nTo evaluate accuracy omit the --save-only parameter and pass the RTL file.")
     exit(0)
 
+# If RTL file is provided, obtain the best time stamp based on training set (200 events)
 results_file = results_file_to_evaluate[:200]
 
 dnn_RTL_out = np.genfromtxt(args.dnn_rtl, delimiter=',', dtype=int)
@@ -89,8 +96,11 @@ for i in range(len_dnn_data):
 score = np.array(score)
 print(score)
 print("Best score = ", np.min(score), ", and time stamp of best score = ", np.argmin(score))
-print("Passing time stamp = ", np.argmin(score) + 1, "(evaluating at next time stamp to ensure evaluation in a safe output time range of dnn0 and dnn1).")
-final_results = eval_dnn_result(results_file_to_evaluate, np.argmin(score)+1)
+# Situations encountered where the first N timestamps have the same score in which case the algorithm defaults to the choosing the first time stamp (highly unlikely to be correct).
+print("Best score (ignoring first 12 entries) = ", np.min(score[12:]), ", and time stamp of best score = ", np.argmin(score[12:]) + 12)
+best_score = np.argmin(score[12:]) + 12 + 1
+print("Passing time stamp = ", best_score, "(evaluating at next time stamp to ensure evaluation in a safe output time range of dnn0 and dnn1).")
+final_results = eval_dnn_result(results_file_to_evaluate, best_score)
 np.savetxt('final_results.csv', final_results, delimiter=',', fmt='%d')
 np.save('final_results.npy', final_results)
 
@@ -105,12 +115,31 @@ matches = np.sum(final_results == dnn_RTL_out)
 print(final_results.shape, matches)
 total = len(final_results)
 percentage_match = (matches / total) * 100
-
 print(f"Percentage of matches: {percentage_match:.2f}%")
+
+
+# Create confusion matrix from the results
+true_values = dnn_RTL_out.flatten()  # Flattening in case of multi-dimensional arrays
+predicted_values = final_results.flatten()
+# Generate confusion matrix
+cm = confusion_matrix(true_values, predicted_values, labels=[0, 1, 2])
+# Plot confusion matrix
+plt.figure(figsize=(8, 6))
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['0','1','2'], yticklabels=['0','1','2'])
+# sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['High p$_T$', 'Low p$_T$ negative', 'Low p$_T$ positive'], yticklabels=['High p$_T$', 'Low p$_T$ negative', 'Low p$_T$ positive'])
+plt.ylabel('True label')
+plt.xlabel('Predicted label')
+plt.title('Confusion Matrix')
+plt.savefig('final_results_confusion_matrix.pdf', dpi=300)
+
+
+# =====================================================
+# End of RTL-DNN match calculations. 
+# Beginning of analysis using truth pT information
+# =====================================================
 
 # load the true pt values if provided
 if args.true_pt:
-
     # function to perform analysis of efficiency results
     def analyzeResults(pt, pt_bins, results):
         effs, eff_errs = [], []
@@ -250,6 +279,3 @@ if args.true_pt:
     ax.legend(loc='lower left', fontsize=11, bbox_to_anchor=(0, 0))
     plt.tight_layout()
     plt.savefig('high_pt_fraction_vs_true_pt.pdf', dpi=300, bbox_inches='tight')
-                                    
-
-
