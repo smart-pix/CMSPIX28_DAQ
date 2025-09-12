@@ -22,18 +22,23 @@ conf = {
 info = inspectPath(os.path.dirname(conf["SP1"]["path"]))
 print(info)
 
+def convertCvGtoFarad(x):
+    C = 1/(x * 1e-6 / 1.602e-19) * 1e15 # in fF
+    return C
 
 # plotting
 fig, ax = plt.subplots(figsize=(6,6))
-bins = np.linspace(45, 75, 16)
+bins = None #np.linspace(45, 75, 16)
 
 # loop and make the plot
 for key, val in conf.items():
     x = np.load(val["path"])
+    x_ = x[:,2]
+    # x_ = convertCvGtoFarad(x[:,2])
     label = key 
-    mu, std = norm.fit(x[:,2])
+    mu, std = norm.fit(x_)
     label += (f" μ = {mu:.2f}, σ = {std:.2f}")
-    ax.hist(x[:,2], bins=bins, label=label, histtype="step")
+    ax.hist(x_, bins=bins, label=label, histtype="step")
 
 # make legend
 legend = ax.legend(fontsize=15, loc = "upper right") #bbox_to_anchor=(0.03, 0.85), loc='upper left')
@@ -42,6 +47,7 @@ for text in legend.get_texts():
 
 # axis labels
 ax.set_xlabel("CvG [µV/e⁻]")
+# ax.set_xlabel("Capacitance [fF]")
 ax.set_ylabel("Count")
 
 # label
