@@ -97,9 +97,9 @@ score = np.array(score)
 print(score)
 print("Best score = ", np.min(score), ", and time stamp of best score = ", np.argmin(score))
 # Situations encountered where the first N timestamps have the same score in which case the algorithm defaults to the choosing the first time stamp (highly unlikely to be correct).
-print("Best score (ignoring first 12 entries) = ", np.min(score[12:]), ", and time stamp of best score = ", np.argmin(score[12:]) + 12)
-best_score = np.argmin(score[12:]) + 12 + 1
-print("Passing time stamp = ", best_score, "(evaluating at next time stamp to ensure evaluation in a safe output time range of dnn0 and dnn1).")
+print("\nBest score (ignoring first 12 entries) = ", np.min(score[12:]), ", and time stamp of best score = ", np.argmin(score[12:]) + 12,".\n")
+best_score = np.argmin(score[12:]) + 12 
+# print("Passing time stamp = ", best_score, "(evaluating at next time stamp to ensure evaluation in a safe output time range of dnn0 and dnn1).")
 final_results = eval_dnn_result(results_file_to_evaluate, best_score)
 np.savetxt('final_results.csv', final_results, delimiter=',', fmt='%d')
 np.save('final_results.npy', final_results)
@@ -127,9 +127,9 @@ cm = confusion_matrix(true_values, predicted_values, labels=[0, 1, 2])
 plt.figure(figsize=(8, 6))
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['0','1','2'], yticklabels=['0','1','2'])
 # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['High p$_T$', 'Low p$_T$ negative', 'Low p$_T$ positive'], yticklabels=['High p$_T$', 'Low p$_T$ negative', 'Low p$_T$ positive'])
-plt.ylabel('True label')
-plt.xlabel('Predicted label')
-plt.title('Confusion Matrix')
+plt.ylabel('RTL label', fontsize=12)
+plt.xlabel('Predicted label', fontsize=12)
+plt.title('Confusion Matrix', fontsize=14)
 plt.savefig('final_results_confusion_matrix.pdf', dpi=300)
 
 
