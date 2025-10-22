@@ -63,7 +63,7 @@ for iB in range(nBits):
         if len(x) >= 2:
             try:
                 mask = y > 0
-                linearRegion = x[mask] > 0.05
+                linearRegion = x[mask] < 0.15
                 popt, pcov = curve_fit(linear_func, x[mask][linearRegion], y[mask][linearRegion])
                 # popt, _ = curve_fit(linear_func, x, y)
                 a, b = popt
