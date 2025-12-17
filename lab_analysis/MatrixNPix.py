@@ -104,7 +104,9 @@ for name, config in pltConfig.items():
             
             hist_vals, bin_edges = np.histogram(temp, bins=bins, density=False) # inData[name][iB]
             bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
-            ax.step(bin_centers, hist_vals, where='mid', linewidth=1.5, color='black', label='Data')
+            data_mean = np.mean(temp)
+            data_std_dev = np.std(temp)
+            ax.step(bin_centers, hist_vals, where='mid', linewidth=1.5, color='black', label=f"Data\n($\\bar{{X}}$={data_mean:.2f}, $X_{{RMS}}$={data_std_dev:.2f})")
             # ax.hist(features[iS:,:,iB:,config["idx"]].flatten(), bins=bins, histtype="step", linewidth=1.5, color='black', label='Data') # plot data histogram # inData[name][iB]
 
             mean = 0
@@ -121,15 +123,16 @@ for name, config in pltConfig.items():
                     # restrict fit to certain region
                     mask = bin_centers != np.nan
                     if "fitRange" in config.keys():
-                        print("Only fitting in the range: ", config["fitRange"][iB])
-                        mask = ((bin_centers > mean - 3.0 * rms) & (bin_centers < mean + 3.0 * rms))    
+                        # print("Only fitting in the range: ", config["fitRange"][iB])
+                        mask = ((bin_centers > mean - 3.0 * rms) & (bin_centers < mean + 3.0 * rms))
+                        print("Only fitting in the range: [", mean - 3.0 * rms, ", ", mean + 3.0 * rms, "]")
                     # perform fit
                     popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
                     # evaluate fit and plot
                     y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
                     amplitude, mean , std_dev = popt
                     std_dev = abs(std_dev) # from the gaussian the reported value could be +/- but just report positive
-                    ax.plot(bin_centers[mask], y_fit[mask], color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
+                    ax.plot(bin_centers[mask], y_fit[mask], color='r', label='Gaussian Fit''\n'fr'($\mu=${mean:.2f}, $\sigma$={std_dev:.2f})', alpha=0.5) # fit
                 except:
                     print("Fit failed")
 

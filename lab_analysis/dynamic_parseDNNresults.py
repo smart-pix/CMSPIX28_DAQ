@@ -1,8 +1,17 @@
-import numpy as np
 import argparse
+import numpy as np
+import argparse, os
 from sklearn.metrics import confusion_matrix
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib.ticker as ticker
+from SmartPixStyle import *
+import mplhep as hep
+
+hep.style.use("ATLAS")
+
+# To-do:
+#       - Update directories in config.py / config.json to reflect this. This way, one does not have to hard-code the results paths in config.py/config.json before running efficiency.py
 
 class SaveOnlyAction(argparse.Action):
     def __call__(self, parser, namespace, values, option_string=None):
@@ -12,8 +21,9 @@ class SaveOnlyAction(argparse.Action):
             setattr(namespace, self.dest, int(values))
 
 parser = argparse.ArgumentParser(description='Parse DNN results from CSV files')
-parser.add_argument("-r", "--readout", type=str, default='./readout.csv', help='Path to readout CSV file')
-parser.add_argument("-d", "--dnn_rtl", type=str, default='./dnn_RTL_out.csv', help='Path to DNN RTL output CSV file')
+parser.add_argument("-r", "--readout", type=str, default='./', help='Path to readout CSV file')
+# parser.add_argument("-d", "--dnn_rtl", type=str, default='./dnn_RTL_out.csv', help='Path to DNN RTL output CSV file')
+parser.add_argument("-d", "--dnn_rtl", action='store_true', help='Use DNN RTL CSV file if exists')
 parser.add_argument("-p", "--true_pt", type=str, default=None, help='Path to true pt values for inputs')
 parser.add_argument("-s", "--save-only", nargs="?", type=int, action=SaveOnlyAction, default=None, help="If set, only save the final results without evaluating accuracy. Pass the time stamp parameter at which the DNN output is parsed. Defaults to 20 if no value is provided.")
 args = parser.parse_args()
@@ -47,21 +57,22 @@ def eval_dnn_result(results_file, bit_iter):
     final_results = np.array(final_results)
     return final_results
 
-results_file_to_evaluate = np.genfromtxt(args.readout, delimiter=',', dtype=int)
+loc_to_files = os.path.join(args.readout, '')
+results_file_to_evaluate = np.genfromtxt(f'{loc_to_files}readout.csv', delimiter=',', dtype=int)  # File name is hard-coded because this is the Spacely software default name and not other name has been used in the past.
 # Output DNN results based on time-stamp guess when RTL file has not been produced
-if(args.save_only is not None):
+if(args.save_only is not None and args.dnn_rtl is False):
     # If save-only is specified, we only save the results at the given time stamp and exit
     print(f"Saving results at time stamp {args.save_only} as --save-only parameter has been passed.")
     final_results = eval_dnn_result(results_file_to_evaluate, args.save_only)
-    np.savetxt('final_results.csv', final_results, delimiter=',', fmt='%d')
-    np.save('final_results.npy', final_results)
+    np.savetxt(f'{loc_to_files}final_results_ts{args.save_only}.csv', final_results, delimiter=',', fmt='%d')
+    np.save(f'{loc_to_files}final_results_ts{args.save_only}.npy', final_results)
     print(f"Results saved at time stamp {args.save_only}. Exiting without further evaluation.\nTo evaluate accuracy omit the --save-only parameter and pass the RTL file.")
     exit(0)
 
 # If RTL file is provided, obtain the best time stamp based on training set (200 events)
 results_file = results_file_to_evaluate[:200]
 
-dnn_RTL_out = np.genfromtxt(args.dnn_rtl, delimiter=',', dtype=int)
+dnn_RTL_out = np.genfromtxt(f'{loc_to_files}dnn_RTL_out.csv', delimiter=',', dtype=int)
 expected_train_results = dnn_RTL_out[:200]
 
 assert len(results_file) == len(expected_train_results), "Mismatch in number of events between results file and expected train results"
@@ -101,8 +112,12 @@ print("\nBest score (ignoring first 12 entries) = ", np.min(score[12:]), ", and 
 best_score = np.argmin(score[12:]) + 12 
 # print("Passing time stamp = ", best_score, "(evaluating at next time stamp to ensure evaluation in a safe output time range of dnn0 and dnn1).")
 final_results = eval_dnn_result(results_file_to_evaluate, best_score)
-np.savetxt('final_results.csv', final_results, delimiter=',', fmt='%d')
-np.save('final_results.npy', final_results)
+if args.save_only is not None:
+    print(f"\n\nSaving results at time stamp {args.save_only} as --save-only parameter has been passed.")
+    print(f"Overriding best score with --save-only parameter: {score[args.save_only]}.")
+    final_results = eval_dnn_result(results_file_to_evaluate, args.save_only)
+np.savetxt(f'{loc_to_files}final_results_ts{best_score}.csv', final_results, delimiter=',', fmt='%d')
+np.save(f'{loc_to_files}final_results_ts{best_score}.npy', final_results)
 
 assert final_results.shape == dnn_RTL_out.shape
 
@@ -118,19 +133,25 @@ percentage_match = (matches / total) * 100
 print(f"Percentage of matches: {percentage_match:.2f}%")
 
 
-# Create confusion matrix from the results
+# Generate and plot confusion matrix
 true_values = dnn_RTL_out.flatten()  # Flattening in case of multi-dimensional arrays
 predicted_values = final_results.flatten()
-# Generate confusion matrix
 cm = confusion_matrix(true_values, predicted_values, labels=[0, 1, 2])
-# Plot confusion matrix
-plt.figure(figsize=(8, 6))
-sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['0','1','2'], yticklabels=['0','1','2'])
-# sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['High p$_T$', 'Low p$_T$ negative', 'Low p$_T$ positive'], yticklabels=['High p$_T$', 'Low p$_T$ negative', 'Low p$_T$ positive'])
-plt.ylabel('RTL label', fontsize=12)
-plt.xlabel('Predicted label', fontsize=12)
-plt.title('Confusion Matrix', fontsize=14)
-plt.savefig('final_results_confusion_matrix.pdf', dpi=300)
+fig, ax = plt.subplots(figsize=(8,6))
+# sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['0','1','2'], yticklabels=['0','1','2'])
+sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['High p$_T$', 'Low p$_T$ -ve', 'Low p$_T$ +ve'], yticklabels=['High p$_T$', 'Low p$_T$ -ve', 'Low p$_T$ +ve'], cbar_kws={'label': 'Number of events'}, annot_kws={"size": 16})
+ax.set_xlabel('Predicted label', fontsize=18, loc='center')#, labelpad=10)
+ax.set_ylabel('RTL label', fontsize=18, loc='center')#, labelpad=10)
+ax.tick_params(axis='both', which='both', length=0, labelsize=16)  # removes tick marks
+ax.spines['top'].set_visible(True)  
+ax.spines['right'].set_visible(True)
+ax.spines['left'].set_visible(True)
+ax.spines['bottom'].set_visible(True)
+SmartPixLabel(ax, 0, 1.003, size=18)
+ax.text(0.33, 1.005, f"ROIC V1, ID 23, SuperPixel 1", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+# ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+# plt.title('Confusion Matrix', fontsize=14)
+plt.savefig(f'{loc_to_files}final_results_confusion_matrix.pdf', bbox_inches='tight', dpi=300)
 
 
 # =====================================================
@@ -186,7 +207,7 @@ if args.true_pt:
     import os
     from matplotlib.ticker import MultipleLocator
 
-    info = inspectPath(os.path.dirname(args.readout))
+    info = inspectPath(os.path.dirname(f'{loc_to_files}readout.csv'))
     print(info)
 
     # load true y-profile
