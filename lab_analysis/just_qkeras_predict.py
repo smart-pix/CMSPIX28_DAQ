@@ -136,7 +136,11 @@ def plotConfusionMatrix(dataPath,runTitle="",QkerasResults = None, ASICresults =
     import seaborn as sns
     cm = confusion_matrix(ASICresults, QkerasResults, labels=[0, 1, 2])
     cm_totalNormalized = cm/len(QkerasResults)
-    cm_colNormalized = cm/np.sum(cm,axis=1)
+    print("debug")
+    #print(cm)
+    #print(np.sum(cm,axis=1))
+    #cm_colNormalized = cm/np.sum(cm,axis=1)  #this is actually row normalized
+    cm_colNormalized = np.divide(cm,np.sum(cm,axis=0))
     assert len(QkerasResults) == np.sum(np.sum(cm))
     print(cm)
     print(f"total normalized:\n{cm_totalNormalized}")
