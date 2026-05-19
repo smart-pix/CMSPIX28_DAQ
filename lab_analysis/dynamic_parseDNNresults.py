@@ -7,6 +7,9 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from SmartPixStyle import *
 import mplhep as hep
+# import sys
+# sys.path.append('../') 
+from Analyze import * 
 
 hep.style.use("ATLAS")
 
@@ -36,7 +39,7 @@ shape_per_event_results = 4,64
 len_dnn_data = 40
 len_empty_bits = 24
 
-def eval_dnn_result(results_file, bit_iter):
+def eval_dnn_result(results_file, bit_iter, debug=True):
     final_results = []
     for evt_iter in range(len(results_file)):
         event_output = results_file[evt_iter]
@@ -48,7 +51,8 @@ def eval_dnn_result(results_file, bit_iter):
         event_result = [msb, lsb]
         if event_result not in possible_dnn_outputs:
             # raise ValueError(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
-            print(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
+            if debug:
+                print(f"Event result {event_result} does not match with possible values {possible_dnn_outputs}")
             final_results.append(-1)
         else:
             matching_index = possible_dnn_outputs.index(event_result)
@@ -58,6 +62,9 @@ def eval_dnn_result(results_file, bit_iter):
     return final_results
 
 loc_to_files = os.path.join(args.readout, '')
+info = inspectPath(loc_to_files)
+print("Chip ID and super pixel ID extracted:", int(info['ChipID']), ", ", int(info['SuperPix']))
+
 results_file_to_evaluate = np.genfromtxt(f'{loc_to_files}readout.csv', delimiter=',', dtype=int)  # File name is hard-coded because this is the Spacely software default name and not other name has been used in the past.
 # Output DNN results based on time-stamp guess when RTL file has not been produced
 if(args.save_only is not None and args.dnn_rtl is False):
@@ -108,39 +115,57 @@ score = np.array(score)
 print(score)
 print("Best score = ", np.min(score), ", and time stamp of best score = ", np.argmin(score))
 # Situations encountered where the first N timestamps have the same score in which case the algorithm defaults to the choosing the first time stamp (highly unlikely to be correct).
-print("\nBest score (ignoring first 12 entries) = ", np.min(score[12:]), ", and time stamp of best score = ", np.argmin(score[12:]) + 12,".\n")
-best_score = np.argmin(score[12:]) + 12 
+# Also accounting for situations where the best score is taken from the last set of timestamps where the DNN outputs are meaningless (DS, 31Jan26).
+min_index = np.argmin(score[12:]) + 12  # Adjust index to account for the initial slice
+if np.min(score[12:]) == score[min_index + 1] == score[min_index + 2] == score[min_index + 3]:
+    min_index = min_index
+else: 
+    min_index = len(score)
+best_score = np.argmin(score[12:min_index]) + 12
+print("\nBest score (ignoring first 12 entries) = ", np.min(score[12:min_index]), ", and time stamp of best score = ", best_score,".\n")
 # print("Passing time stamp = ", best_score, "(evaluating at next time stamp to ensure evaluation in a safe output time range of dnn0 and dnn1).")
-final_results = eval_dnn_result(results_file_to_evaluate, best_score)
-if args.save_only is not None:
-    print(f"\n\nSaving results at time stamp {args.save_only} as --save-only parameter has been passed.")
-    print(f"Overriding best score with --save-only parameter: {score[args.save_only]}.")
-    final_results = eval_dnn_result(results_file_to_evaluate, args.save_only)
+final_results = eval_dnn_result(results_file_to_evaluate, best_score, debug=False)
+print(f"\nFinal results saved at time stamp {best_score} with score {score[best_score]}.\n")
 np.savetxt(f'{loc_to_files}final_results_ts{best_score}.csv', final_results, delimiter=',', fmt='%d')
 np.save(f'{loc_to_files}final_results_ts{best_score}.npy', final_results)
-
 assert final_results.shape == dnn_RTL_out.shape
-
 no_match = np.where(final_results != dnn_RTL_out)
 for i in no_match:
     print("Final result:", final_results[i])
     print("DNN RTL out:", dnn_RTL_out[i])
-
 matches = np.sum(final_results == dnn_RTL_out)
 print(final_results.shape, matches)
 total = len(final_results)
 percentage_match = (matches / total) * 100
-print(f"Percentage of matches: {percentage_match:.2f}%")
+print(f"Percentage of matches at best score: {percentage_match:.2f}%")
+
+if args.save_only is not None:
+    print(f"\n\nAlso, saving results at time stamp {args.save_only} as --save-only parameter has been passed.")
+    print(f"Overriding best score with --save-only parameter: {score[args.save_only]}.")
+    final_results = eval_dnn_result(results_file_to_evaluate, args.save_only)
+    best_score = args.save_only
+    np.savetxt(f'{loc_to_files}final_results_ts{best_score}.csv', final_results, delimiter=',', fmt='%d')
+    np.save(f'{loc_to_files}final_results_ts{best_score}.npy', final_results)
+    assert final_results.shape == dnn_RTL_out.shape
+    no_match = np.where(final_results != dnn_RTL_out)
+    for i in no_match:
+        print("Final result:", final_results[i])
+        print("DNN RTL out:", dnn_RTL_out[i])
+    matches = np.sum(final_results == dnn_RTL_out)
+    print(final_results.shape, matches)
+    total = len(final_results)
+    percentage_match = (matches / total) * 100
+    print(f"Percentage of matches at save-only timestamp ({args.save_only}): {percentage_match:.2f}%")
 
 
-# Generate and plot confusion matrix
+# Generate and plot confusion matrix at save-only timestamp when given, else at best_score
 true_values = dnn_RTL_out.flatten()  # Flattening in case of multi-dimensional arrays
 predicted_values = final_results.flatten()
 cm = confusion_matrix(true_values, predicted_values, labels=[0, 1, 2])
 fig, ax = plt.subplots(figsize=(8,6))
 # sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['0','1','2'], yticklabels=['0','1','2'])
 sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', xticklabels=['High p$_T$', 'Low p$_T$ -ve', 'Low p$_T$ +ve'], yticklabels=['High p$_T$', 'Low p$_T$ -ve', 'Low p$_T$ +ve'], cbar_kws={'label': 'Number of events'}, annot_kws={"size": 16})
-ax.set_xlabel('Predicted label', fontsize=18, loc='center')#, labelpad=10)
+ax.set_xlabel(f'Predicted label at TS{best_score}', fontsize=18, loc='center')#, labelpad=10)
 ax.set_ylabel('RTL label', fontsize=18, loc='center')#, labelpad=10)
 ax.tick_params(axis='both', which='both', length=0, labelsize=16)  # removes tick marks
 ax.spines['top'].set_visible(True)  
@@ -148,7 +173,7 @@ ax.spines['right'].set_visible(True)
 ax.spines['left'].set_visible(True)
 ax.spines['bottom'].set_visible(True)
 SmartPixLabel(ax, 0, 1.003, size=18)
-ax.text(0.33, 1.005, f"ROIC V1, ID 23, SuperPixel 1", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
+ax.text(0.33, 1.005, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
 # ax.text(0.05, 0.85, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
 # plt.title('Confusion Matrix', fontsize=14)
 plt.savefig(f'{loc_to_files}final_results_confusion_matrix.pdf', bbox_inches='tight', dpi=300)

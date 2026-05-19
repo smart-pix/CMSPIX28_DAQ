@@ -78,9 +78,10 @@ def inspectPath(inPath):
     split = inPath.split("/")
     info = {}
     # get the date and test type
-    info["date"] = [i for i in split if "2025" in i][0].split("_")[0]
-    info["time"] = [i for i in split if "2025" in i][0].split("_")[1]
-    info["testType"] = [i for i in split if "2025" in i][0].split("_")[2]
+    target = [i for i in split if "2025" in i or "2026" in i][0].split("_")
+    info["date"] = target[0]
+    info["time"] = target[1]
+    info["testType"] = target[2]
 
     # now get all the other configurations with number values
     matches = re.findall(r'([a-zA-Z]+)([0-9.]+)', inPath)
@@ -222,7 +223,8 @@ def getFeatures(data, nelectron_asics, info,
                 sCutLo = 0.2, # filter lower threshold to analyse the data
                 stds_threshold = 200, # filter stds threshold to analyse the data
                 doFit = False, # run the fitting 
-                p0s = [[400, 40], [1200, 40], [2500, 40]] # starting p0s for bit 0, 1, 2
+                p0s = [[400, 40], [1500, 40], [2000, 40]] # starting p0s for bit 0, 1, 2
+                # p0s = [[400, 40], [1200, 40], [2500, 40]] # starting p0s for bit 0, 1, 2
     ):
     
     # loop over bits
