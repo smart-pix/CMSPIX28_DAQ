@@ -1,6 +1,8 @@
 # file types
 *.pdf
 *.npz
+*.npy
+*.json
 *~
 
 # folders
