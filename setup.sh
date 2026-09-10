@@ -12,7 +12,7 @@ git submodule foreach git pull
 cd spacely/PySpacely/
 mkdir spacely-asic-config
 cd spacely-asic-config
-git clone git@github.com:smart-pix/CMSPIX28Spacely.git
+git clone git@github.com:badeaa3/CMSPIX28Spacely.git
 
 # clean up and go back to main dir
 cd $top
