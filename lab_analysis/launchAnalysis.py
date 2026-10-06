@@ -27,6 +27,13 @@ if __name__ == "__main__":
         print(f"Processing folder: {folder}")
         info = inspectPath(folder)
         #print("test_2")
+        # pulse generator delay scans have delay_*.npy instead of vasic_*.npy, no S-curve analysis
+        if "PulseDelayScan" in folder:
+            try:
+                subprocess.run(["python", "PulseDelayScan.py", "-i", folder], check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error processing {folder}: {e}")
+            continue
         try:
             Analyze = ["python", "Analyze.py", "-i", folder]
             #print("test_3")
