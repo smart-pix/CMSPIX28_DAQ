@@ -19,16 +19,17 @@ if __name__ == "__main__":
     # pattern = f"{base_path}/2025.05.01_13*"
     # # Find all matching folders
     # folders = sorted(glob.glob(pattern))
-
+    #print("test_1")
     folders = sorted(glob.glob(args.inPath))
     
     # Loop over folders and run commands
     for folder in folders:
         print(f"Processing folder: {folder}")
         info = inspectPath(folder)
-
+        #print("test_2")
         try:
             Analyze = ["python", "Analyze.py", "-i", folder]
+            #print("test_3")
             if args.doFit:
                 Analyze.append("--doFit")
             subprocess.run(Analyze, check=True)

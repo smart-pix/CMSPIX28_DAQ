@@ -252,14 +252,7 @@ def getFeatures(data, nelectron_asics, info,
                 fiftyPerc_, mean_, std_ = -999, -999, -999
 
                 # the "high" plateau is at the start for an inverse curve, at the end otherwise
-                # goodBit = (bit[0] > sCutHi) if inverted else (bit[-1] > sCutHi)
-                # require both plateaus so the curve actually crosses 50% inside the scan;
-                # a curve stuck at 1 (or 0) otherwise gets a fake 50% point at the first scan step
-                if inverted:
-                    goodBit = bit[0] > sCutHi and bit[-1] < sCutLo
-                else:
-                    goodBit = bit[0] < sCutLo and bit[-1] > sCutHi
-
+                goodBit = (bit[0] > sCutHi) if inverted else (bit[-1] > sCutHi)
 
                 if goodBit:
                     if doFit:
@@ -273,13 +266,54 @@ def getFeatures(data, nelectron_asics, info,
                             )
                             mean_, std_ = fitResult[0]
                         except Exception:
-                            print("fit failed")
-                            mean_, std_ = -1, -1
+                           print("fit failed")
+                           mean_, std_ = -1, -1
 
                     idx1 = np.argmin(np.abs(bit - 0.1))
                     idx9 = np.argmin(np.abs(bit - 0.9))
                     fiftyPerc_ = (nelectron_asics[idx9] + nelectron_asics[idx1]) / 2
+"""
+                bit = data[iS, iP, iB]
 
+                # temp default values
+                fiftyPerc_, mean_, std_ = -999, -999, -999
+
+                # check if good bit. if pass threshold, then fit and get 50% values
+                # goodBit = True # bit[0] < sCutLo and bit[-1] > sCutHi
+                # goodBit = bit[0] < sCutLo and bit[-1] > sCutHi
+                goodBit = bit[-1] > sCutHi
+                # goodBit = 1 #bit[-1] > sCutLo
+                eff_bit = 1-bit
+                print("test check 1")
+                # fit and get 50% values
+                if goodBit:
+                    print("test check 2")
+                    # fit
+                    if doFit:
+                        try:
+                            fitResult=curve_fit(
+                                f=norm.cdf,
+                                xdata=nelectron_asics,
+                                ydata=eff_bit,
+                                p0=p0s[iB],
+                                bounds=((-np.inf,0),(np.inf,np.inf))
+                            )
+                            mean_, std_ = fitResult[0]
+                            print("fit Succeeded")
+                        except:
+                            print("fit failed")
+                            mean_, std_ = -1, -1
+
+                    # pick up 50% values
+                    idx_closest = np.argmin(np.abs(eff_bit - 0.5))
+                    fiftyPerc_ = nelectron_asics[idx_closest]
+
+                    # pick up points closest to 0.1 and 0.9
+                    idx1 = np.argmin(np.abs(eff_bit - 0.1))
+                    idx9 = np.argmin(np.abs(eff_bit - 0.9))
+                    # print(idx1, nelectron_asics[idx1], idx9, nelectron_asics[idx9])
+                    fiftyPerc_ = (nelectron_asics[idx9] + nelectron_asics[idx1])/2
+"""
                 # else:
                 #    print("Did not pass threshold cuts: ", bit[0], bit[-1], sCutLo, sCutHi)
                 #
@@ -323,7 +357,7 @@ def analyze_MatrixCvG(config):
         da = np.expand_dims(da, axis=0)  # add setting dimension
 
         # get features
-        fe = getFeatures(da, na, info, doFit=config["doFit"])
+        fe = getFeatures(da, na, info, config["doFit"])
 
         # append to lists
         v_asics.append(va)
