@@ -12,6 +12,7 @@ if __name__ == "__main__":
     # parser.add_argument('-j', '--ncpu', type=int, default=1, help='Number of CPUs to use')
     # parser.add_argument('-o', '--outDir', default=None, help="Output directory. If not provided then use directory of inFilePath")
     parser.add_argument('--doFit', action="store_true", help="Run the S-cruve fitting. Note the analysis will take significantly longer.")
+    parser.add_argument('--staticPulse', action="store_true", help="MatrixCvG data from PreProgSCurveBurst_StaticPulse (fixed pulse amplitude, Vth swept)")
     args = parser.parse_args()
 
     # # Glob pattern for matching folders
@@ -58,6 +59,11 @@ if __name__ == "__main__":
             if "MatrixPulseGenFall" in folder:
                 subprocess.run(["python", "MatrixPulseGenFall.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
             if "MatrixCvG" in folder:
-                subprocess.run(["python", "MatrixCvG.py", "-i", os.path.join(folder, "plots/scurve_data.npz")], check=True)
+                # MatrixCvG_allPixels.py handles the volt-valued S-curve axis and the static-pulse
+                # layout; MatrixCvG.py does not and would overwrite the same histogram files
+                CvG = ["python", "MatrixCvG_allPixels.py", "-i", os.path.join(folder, "plots/scurve_data.npz")]
+                if args.staticPulse:
+                    CvG.append("--staticPulse")
+                subprocess.run(CvG, check=True)
         except subprocess.CalledProcessError as e:
             print(f"Error processing {folder}: {e}")

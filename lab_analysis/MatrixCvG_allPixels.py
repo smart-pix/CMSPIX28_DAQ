@@ -75,17 +75,20 @@ for iB in range(nBits):
                 y.append(value)
         x = np.array(x)
         y = np.array(y)
+        # Analyze.py now leaves the S-curve axis in volts (nelectron_asics = v_asics / VtomV),
+        # so the 50% point is a voltage and has to be converted to electrons here.
         if args.staticPulse:
             # In the static-pulse routine the roles are swapped: the folder "vth" value is the
-            # injected pulse amplitude and the S-curve axis is the swept Vth, which Analyze.py
-            # converted to "electrons" with Cin/Qe. Swap back to (Vth [V], threshold [e-]).
-            x, y = y / (Pgain * Cin / Qe), x * Pgain * Cin / Qe
-        if len(x) >= 2:
+            # injected pulse amplitude [V] and the S-curve axis is the swept Vth [V].
+            # Swap back to (Vth [V], threshold [e-]).
+            x, y = y, x * Pgain * Cin / Qe
+        else:
+            y = y * Pgain * Cin / Qe
+        mask = y > 0
+        linearRegion = x[mask] > args.vthMin
+        # need at least 2 points inside the fit region for a straight line
+        if np.count_nonzero(linearRegion) >= 2:
             try:
-                mask = y > 0
-                linearRegion = x[mask] > 0.03 #0.03 # 0.05
-                #linearRegion = x[mask] > args.vthMin
-                #popt, pcov = curve_fit(linear_func, x[mask][linearRegion], y[mask][linearRegion])
                 a, b = fit_threshold_line(x[mask][linearRegion], y[mask][linearRegion])
                 print(x[mask][linearRegion], y[mask][linearRegion])
                 #a, b = popt
@@ -96,7 +99,7 @@ for iB in range(nBits):
                 vth_offset = -b / a      # still the Vth where the fitted threshold hits 0 e⁻
                 if np.isfinite(CvG):
                     bit_CvG[iB].append(CvG)
-                    bit_VthOff[iB].append(vth_offset)  # mV
+                    bit_VthOff[iB].append(vth_offset)  # V
                     store_CvG.append((iP, iB, CvG))
                     store_VthOff.append((iP, iB, vth_offset))
 
@@ -109,8 +112,11 @@ for iB in range(nBits):
                         "CvG": CvG,
                         "vth_offset": vth_offset
                     })
-            except RuntimeError:
+            except (RuntimeError, ValueError, TypeError) as e:
+                print(f"Fit failed for pixel {iP}, bit {iB}: {e}")
                 continue
+
+print("Pixels fitted per bit:", {iB: len(v) for iB, v in bit_CvG.items()})
 
 # Save the fit data to a JSON file
 with open(os.path.join(outDir, f'fit_data.json'), 'w') as json_file:
@@ -166,67 +172,52 @@ for iB in range(nBits):
              bbox=dict(edgecolor='black', facecolor='none', boxstyle='round,pad=0.5'))
     plt.savefig(os.path.join(outDir, f'CvG_AllPixelsFit_Bit_{iB}.png'))
 
-# # ====== CvG Histogram Plotting ======
-# fig, axs = plt.subplots(1, 3, figsize=(18, 5))
-# for iB in range(nBits):
-#     vals = np.array(bit_CvG[iB])
-#     if len(vals) == 0:
-#         continue
-#     mu, std = norm.fit(vals)
-#     axs[iB].hist(vals, bins=30, color='skyblue', edgecolor='black', alpha=0.7)
-#     axs[iB].set_title(f'Bit {iB}: μ = {mu:.2f} µV/e⁻, σ = {std:.2f}')
-#     axs[iB].set_xlabel("CvG [µV/e⁻]")
-#     axs[iB].set_ylabel("Count")
-#     axs[iB].grid(True)
-# plt.tight_layout()
-# plt.savefig(os.path.join(outDir, "CvG_Histograms_PerBit.pdf"))
-# plt.close()
+# ====== CvG / Vth offset Histogram Plotting ======
+# per-bit histograms; an empty bit is labelled instead of silently left blank
+def plotPerBit(bitVals, xlabel, titleFmt, outName):
+    fig, axs = plt.subplots(1, 3, figsize=(18, 5))
+    for iB in range(nBits):
+        vals = np.array(bitVals[iB])
+        axs[iB].set_xlabel(xlabel)
+        axs[iB].set_ylabel("Count")
+        axs[iB].grid(True)
+        if len(vals) == 0:
+            axs[iB].set_title(f'Bit {iB}: no pixels passed')
+            continue
+        mu, std = norm.fit(vals)
+        axs[iB].hist(vals, bins=30, color='skyblue', edgecolor='black', alpha=0.7)
+        axs[iB].set_title(titleFmt.format(iB=iB, mu=mu, std=std))
+    plt.tight_layout()
+    plt.savefig(os.path.join(outDir, outName))
+    plt.close()
 
-# fig, axs = plt.subplots(1, 3, figsize=(18, 5))
-# for iB in range(nBits):
-#     vals = np.array(bit_VthOff[iB])
-#     if len(vals) == 0:
-#         continue
-#     mu, std = norm.fit(vals)
-#     axs[iB].hist(vals, bins=30, color='skyblue', edgecolor='black', alpha=0.7)
-#     axs[iB].set_title(f'Bit {iB}: Vth offset = {mu:.2f} V, σ = {std:.2f}')
-#     axs[iB].set_xlabel("Vth offset [mV]")
-#     axs[iB].set_ylabel("Count")
-#     axs[iB].grid(True)
-# plt.tight_layout()
-# plt.savefig(os.path.join(outDir, "vthOffset_Histograms_PerBit.pdf"))
-# plt.close()
+# all bits combined; skipped when empty (norm.fit of an empty array returns nan)
+def plotCombined(bitVals, xlabel, titleFmt, outName):
+    vals = np.concatenate([np.array(v) for v in bitVals.values()])
+    if len(vals) == 0:
+        print(f"No fitted pixels, skipping {outName}")
+        return
+    mu, std = norm.fit(vals)
+    plt.figure(figsize=(8,6))
+    plt.hist(vals, bins=40, color='salmon', edgecolor='black', alpha=0.75)
+    plt.title(titleFmt.format(mu=mu, std=std))
+    plt.xlabel(xlabel)
+    plt.ylabel("Count")
+    plt.grid(True)
+    plt.savefig(os.path.join(outDir, outName))
+    plt.close()
 
-# # Combined histogram
-# combined_vals = np.concatenate([np.array(v) for v in bit_CvG.values()])
-# mu, std = norm.fit(combined_vals)
-# plt.figure(figsize=(8,6))
-# plt.hist(combined_vals, bins=40, color='salmon', edgecolor='black', alpha=0.75)
-# plt.title(f'All Bits Combined: μ = {mu:.2f} µV/e⁻, σ = {std:.2f}')
-# plt.xlabel("CvG [µV/e⁻]")
-# plt.ylabel("Count")
-# plt.grid(True)
-# plt.savefig(os.path.join(outDir, "CvG_Histogram_Combined.pdf"))
-# plt.close()
+plotPerBit(bit_CvG, "CvG [µV/e⁻]", 'Bit {iB}: μ = {mu:.2f} µV/e⁻, σ = {std:.2f}', "CvG_Histograms_PerBit.pdf")
+plotPerBit(bit_VthOff, "Vth offset [V]", 'Bit {iB}: Vth offset = {mu:.3f} V, σ = {std:.3f}', "vthOffset_Histograms_PerBit.pdf")
+plotCombined(bit_CvG, "CvG [µV/e⁻]", 'All Bits Combined: μ = {mu:.2f} µV/e⁻, σ = {std:.2f}', "CvG_Histogram_Combined.pdf")
+plotCombined(bit_VthOff, "Vth offset [V]", 'All Bits Combined: μ = {mu:.3f} V, σ = {std:.3f}', "vth_offset_Histogram_Combined.pdf")
 
-# # Combined histogram
-# combined_vals = np.concatenate([np.array(v) for v in bit_VthOff.values()])
-# mu, std = norm.fit(combined_vals)
-# plt.figure(figsize=(8,6))
-# plt.hist(combined_vals, bins=40, color='salmon', edgecolor='black', alpha=0.75)
-# plt.title(f'All Bits Combined: μ = {mu:.2f} V⁻, σ = {std:.2f}')
-# plt.xlabel("vth offset [mV]")
-# plt.ylabel("Count")
-# plt.grid(True)
-# plt.savefig(os.path.join(outDir, "vth_offset_Histogram_Combined.pdf"))
-# plt.close()
-
-# # Save CvG data as (iP, iB, CvG)
-# CvG_array = np.array(store_CvG)
-# vth_offset_array = np.array(store_VthOff)
-# save_path1 = os.path.join(outDir, "CvG_data.npy")
-# save_path2 = os.path.join(outDir, "vth_offset_data.npy")
-# np.save(save_path1, CvG_array)
-# np.save(save_path2, vth_offset_array)
-# print(f"Saved CvG data to: {save_path1}")
-# print(f"Saved vth offset data to: {save_path2}")
+# Save CvG data as (iP, iB, CvG)
+CvG_array = np.array(store_CvG)
+vth_offset_array = np.array(store_VthOff)
+save_path1 = os.path.join(outDir, "CvG_data.npy")
+save_path2 = os.path.join(outDir, "vth_offset_data.npy")
+np.save(save_path1, CvG_array)
+np.save(save_path2, vth_offset_array)
+print(f"Saved CvG data to: {save_path1}")
+print(f"Saved vth offset data to: {save_path2}")
