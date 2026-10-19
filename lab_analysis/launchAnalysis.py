@@ -13,6 +13,9 @@ if __name__ == "__main__":
     # parser.add_argument('-o', '--outDir', default=None, help="Output directory. If not provided then use directory of inFilePath")
     parser.add_argument('--doFit', action="store_true", help="Run the S-cruve fitting. Note the analysis will take significantly longer.")
     parser.add_argument('--staticPulse', action="store_true", help="MatrixCvG data from PreProgSCurveBurst_StaticPulse (fixed pulse amplitude, Vth swept)")
+    parser.add_argument('--injOffset', type=float, default=None, help="PulseDelayScan: scope time [ns] from scanLoad rising edge to injection at the chip at delay offset 0; enables the timing overlay on the 2D maps")
+    parser.add_argument('--anaRise', type=float, default=None, help="PulseDelayScan: scope time [ns] from scanLoad rising edge to the BxCLK_ANA rising edge (sampling edge)")
+    parser.add_argument('--bxclkRise', type=float, default=None, help="PulseDelayScan: scope time [ns] from scanLoad rising edge to the BxCLK rising edge")
     args = parser.parse_args()
 
     # # Glob pattern for matching folders
@@ -31,7 +34,11 @@ if __name__ == "__main__":
         # pulse generator delay scans have delay_*.npy instead of vasic_*.npy, no S-curve analysis
         if "PulseDelayScan" in folder:
             try:
-                subprocess.run(["python", "PulseDelayScan.py", "-i", folder], check=True)
+                cmd = ["python", "PulseDelayScan.py", "-i", folder]
+                for opt in ["injOffset", "anaRise", "bxclkRise"]:
+                    if getattr(args, opt) is not None:
+                        cmd += [f"--{opt}", str(getattr(args, opt))]
+                subprocess.run(cmd, check=True)
             except subprocess.CalledProcessError as e:
                 print(f"Error processing {folder}: {e}")
             continue

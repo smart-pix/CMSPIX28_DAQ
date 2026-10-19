@@ -2,6 +2,7 @@ import numpy as np
 import os
 import glob
 import re
+import json
 import argparse
 import matplotlib.pyplot as plt
 import mplhep as hep
@@ -25,6 +26,12 @@ from Analyze import inspectPath, NBIT
 #   PulseDelayScanMatrix : the same two plots per pixel in nPix<n>/ (skip with --noPixelPlots)
 #                          PulseDelayScan_widthAtHalfMaxVth_map_Bit<b>.pdf (pixel map) and _hist.pdf
 #                          pulse_delay_matrix_data.npz
+# Timing overlay on the 2D maps (needs --injOffset), from a scope measurement with the run's settings, all relative to the scanLoad rising edge:
+#   --injOffset : injection edge at the chip at delay offset 0      --anaRise : BxCLK_ANA rising edge      --bxclkRise : BxCLK rising edge
+#   an event at time t after the scanLoad rising edge is at delay offset t - injOffset on the maps
+#   Drawn: sampling edge = BxCLK_ANA rising edge (white dashed), BxCLK rising edge (red dotted), scanLoad rise / fall (orange)
+#   The hit window is set by the pixel sampling its comparator shortly after the BxCLK_ANA rising edge: the late edge of the window is
+#   that sampling instant minus the time walk, the early edge is set by the time over threshold
 # Width at half maximum threshold (matrix only), per pixel and bit:
 #   maximum threshold Vmax = highest threshold at which the hit rate reaches 50% at some delay
 #   width = delay range [ns] with hit rate >= 50% at Vmax/2 (interpolated between the scanned thresholds)
@@ -35,6 +42,10 @@ parser.add_argument("-i", '--inPath', type=str, required=True, help='Input test 
 parser.add_argument("-o", '--outDir', type=str, default=None, help='Output directory. Default is <inPath>/plots')
 parser.add_argument('--contour', type=float, default=50, help='Hit rate [%%] used for the 2D map contour and the width at half maximum threshold')
 parser.add_argument('--noPixelPlots', action="store_true", help='PulseDelayScanMatrix: only make the matrix summary plots, not the plots for every pixel')
+parser.add_argument('--injOffset', type=float, default=None, help='Scope: time [ns] from the scanLoad rising edge to the injection edge at the chip at delay offset 0. Enables the timing overlay on the 2D maps')
+parser.add_argument('--anaRise', type=float, default=None, help='Scope: time [ns] from the scanLoad rising edge to the BxCLK_ANA rising edge (sampling edge)')
+parser.add_argument('--bxclkRise', type=float, default=None, help='Scope: time [ns] from the scanLoad rising edge to the BxCLK rising edge')
+parser.add_argument('--bxclkPeriod', type=str, default='28', help='bxclk_period (hex) if the run has no scan_settings.json, for the scanLoad falling edge')
 args = parser.parse_args()
 
 inPath = os.path.normpath(args.inPath)
@@ -153,6 +164,40 @@ def save(fig, name):
     fig.savefig(name, bbox_inches='tight')
     plt.close(fig)
 
+def runSettings(path):
+    # timing settings of the run: scan_settings.json written by the routines, else the command line options
+    found = sorted(glob.glob(os.path.join(path, "**", "scan_settings.json"), recursive=True))
+    if found:
+        with open(found[0]) as fs:
+            return json.load(fs)
+    return {"bxclk_period": args.bxclkPeriod}
+
+def timingOverlay(settings, injOffset, anaRise, bxclkRise):
+    # scope-measured edges (ns after the scanLoad rising edge) converted to delay offset coordinates
+    if injOffset is None:
+        return None
+    period = 2.5*int(settings["bxclk_period"], 16)  # scanLoad stays high for one BxCLK period
+    toDelay = lambda t: None if t is None else t - injOffset
+    print(f"Timing overlay (delay offset): scanLoad high {toDelay(0):.1f} to {toDelay(period):.1f} ns"
+          + (f", sampling edge (BxCLK_ANA rising) {toDelay(anaRise):.1f} ns" if anaRise is not None else ", no --anaRise: no sampling edge")
+          + (f", BxCLK rising {toDelay(bxclkRise):.1f} ns" if bxclkRise is not None else ""))
+    return {"scanLoad": (toDelay(0), toDelay(period)), "sampling": toDelay(anaRise), "bxclk": toDelay(bxclkRise)}
+
+def drawTiming(ax, overlay, xmin, xmax):
+    if overlay is None:
+        return
+    first = True
+    for x in overlay["scanLoad"]:
+        if xmin <= x <= xmax:
+            ax.axvline(x, color="orange", linestyle="-", linewidth=1.2, label="scanLoad rise / fall" if first else None)
+            first = False
+    if overlay["sampling"] is not None and xmin <= overlay["sampling"] <= xmax:
+        ax.axvline(overlay["sampling"], color="white", linestyle="--", linewidth=1.8, label="sampling edge (BxCLK_ANA rising)")
+    if overlay["bxclk"] is not None and xmin <= overlay["bxclk"] <= xmax:
+        ax.axvline(overlay["bxclk"], color="red", linestyle=":", linewidth=1.8, label="BxCLK rising")
+    if ax.get_legend_handles_labels()[0]:
+        ax.legend(fontsize=10, loc="upper right", frameon=True, facecolor="white", edgecolor="none", framealpha=0.85)
+
 #-----------------------------------------------------------------------
 # plots
 #-----------------------------------------------------------------------
@@ -187,6 +232,9 @@ def plotHitMaps(vths, delays, hitRate, nPix, plotDir):
         ax.set_xlabel(xlabel, fontsize=18, labelpad=10)
         ax.set_ylabel(r"V$_{th}$ [mV]", fontsize=18, labelpad=10)
         SetTicks(ax)
+        edges = binEdges(delays)
+        drawTiming(ax, overlay, edges[0], edges[-1])
+        ax.set_xlim(edges[0], edges[-1])
         save(fig, os.path.join(plotDir, f"PulseDelayScan_hitMap_Bit{iB}.pdf"))
 
 def plotCumulative(vths, hitRate, nPix, plotDir):
@@ -237,6 +285,9 @@ def plotPixelMap(values, zlabel, name):
 # run
 #-----------------------------------------------------------------------
 testType = info["testType"]
+overlay = timingOverlay(runSettings(inPath), args.injOffset, args.anaRise, args.bxclkRise) if testType in ("PulseDelayScanVTH", "PulseDelayScanMatrix") else None
+if overlay is None and testType in ("PulseDelayScanVTH", "PulseDelayScanMatrix"):
+    print("No --injOffset given: 2D maps without the timing overlay")
 
 if testType == "PulseDelayScan":
     delays, hitRate, nSample = loadDelayScan(inPath)
