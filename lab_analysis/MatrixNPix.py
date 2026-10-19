@@ -17,6 +17,21 @@ from Analyze import inspectPath
 def gaussian(x, amplitude, mean, std_dev):
     return amplitude * np.exp(-((x - mean)**2) / (2 * std_dev**2))
 
+# a sigma histogram with fewer than this many bins inside the +/-3 RMS fit window is
+# re-binned over the data's own range; TARGET_SIGMA_BINS sets how many bins that spans
+MIN_FIT_BINS = 6
+TARGET_SIGMA_BINS = 24
+
+# number of bins the +/-3 RMS fit window would keep, i.e. what the fit has to work with
+def fitBinCount(bins, values):
+    hist_vals, bin_edges = np.histogram(values, bins=bins)
+    if hist_vals.sum() == 0:
+        return 0
+    bin_centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+    mean = np.average(bin_centers, weights=hist_vals)
+    rms = np.sqrt(np.average((bin_centers - mean)**2, weights=hist_vals))
+    return int(((bin_centers > mean - 3.0 * rms) & (bin_centers < mean + 3.0 * rms)).sum())
+
 # def double_gaussian(x, amp1, mean1, std1, amp2, mean2, std2):
 #     gauss1 = amp1 * np.exp(-((x - mean1)**2) / (2 * std1**2))
 #     gauss2 = amp2 * np.exp(-((x - mean2)**2) / (2 * std2**2))
@@ -85,11 +100,26 @@ for name, config in pltConfig.items():
             #                    config["binConfigs"][iB][1], 
             #                    config["binConfigs"][iB][2])
             step_size = 20
-            if("sigma" in config["xlabel"]):
+            isSigma = "sigma" in config["xlabel"]
+            if isSigma:
                 step_size = 10
             xlim_min, xlim_max = max(0, math.floor(min(temp) / 100) * 100 - 100), math.ceil(max(temp) / 100) * 100 + 100
             nbins = (xlim_max - xlim_min) // step_size
             bins = np.linspace(xlim_min, xlim_max, nbins + 1)  # Add 1 to include the upper limit
+
+            # A narrow sigma distribution lands in a handful of 10 e- bins, because the
+            # range above snaps out to 100 e- boundaries. The +/-3 RMS fit window is then
+            # too few bins to constrain 3 parameters, and a bin wider than the true sigma
+            # inflates the fitted width (~4.4 e- against an unbinned 2.7 e- on this chip).
+            # Only in that case, re-bin over the data's own range so the shape is resolved.
+            if isSigma and fitBinCount(bins, temp) < MIN_FIT_BINS:
+                rebin_min = max(0.0, math.floor(min(temp) / 10) * 10 - 10)
+                rebin_max = math.ceil(max(temp) / 10) * 10 + 10
+                step_size = max(1.0, round((rebin_max - rebin_min) / TARGET_SIGMA_BINS))
+                nbins = max(1, int(round((rebin_max - rebin_min) / step_size)))
+                bins = np.linspace(rebin_min, rebin_min + step_size * nbins, nbins + 1)
+                print(f"Narrow sigma distribution for Bit {iB}: re-binning to {step_size:.0f}"
+                      r" e- over [" f"{bins[0]:.0f}, {bins[-1]:.0f}]")
 
             # set up figure
             fig, ax = plt.subplots(figsize=(6,6))
@@ -109,29 +139,45 @@ for name, config in pltConfig.items():
 
             mean = 0
             rms = 0
+            fitAmplitude = None
             # gaussian fit
             if config["p0s"] is not None:
-                
+
+                # seed from the histogram itself rather than config["p0s"]. The hardcoded
+                # seeds are tuned to one chip's charge scale; on a chip that sits elsewhere
+                # they leave the optimizer in a region where the gaussian underflows, and it
+                # either gives up or returns the seed untouched as if it were a fit.
+                mean = np.average(bin_centers, weights=hist_vals)
+                rms = np.sqrt(np.average((bin_centers - mean)**2, weights=hist_vals))
+                p0 = [max(hist_vals), mean, rms]
+
+                # restrict fit to certain region
+                mask = bin_centers != np.nan
+                if "fitRange" in config.keys():
+                    mask = ((bin_centers > mean - 3.0 * rms) & (bin_centers < mean + 3.0 * rms))
+                    print(f"Only fitting in the range: [{mean - 3.0 * rms:.1f}, {mean + 3.0 * rms:.1f}] ({mask.sum()} bins)")
+
                 try:
-                    # set amplitude to max of hist values
-                    p0 = config["p0s"][iB]
-                    p0[0] = max(hist_vals)
-                    mean = np.average(bin_centers, weights=hist_vals)
-                    rms = np.sqrt(np.average((bin_centers - mean)**2, weights=hist_vals))
-                    # restrict fit to certain region
-                    mask = bin_centers != np.nan
-                    if "fitRange" in config.keys():
-                        print("Only fitting in the range: ", config["fitRange"][iB])
-                        mask = ((bin_centers > mean - 3.0 * rms) & (bin_centers < mean + 3.0 * rms))    
+                    # a 3 parameter gaussian needs more than 3 points to say anything
+                    if mask.sum() < len(p0):
+                        raise RuntimeError(f"{mask.sum()} bins in fit range for {len(p0)} parameters")
                     # perform fit
                     popt, _ = curve_fit(gaussian, bin_centers[mask], hist_vals[mask], p0=p0)
+                    # curve_fit can return p0 untouched with no exception when the seed is far
+                    # enough off that the gradient underflows. The curve then draws flat at zero
+                    # while the legend reports the seed, so treat it as a failure, not a fit.
+                    if np.allclose(popt, p0):
+                        raise RuntimeError("optimizer returned the initial guess unchanged")
                     # evaluate fit and plot
                     y_fit = gaussian(bin_centers, *popt) # evaluate gaussian at bins
                     amplitude, mean , std_dev = popt
                     std_dev = abs(std_dev) # from the gaussian the reported value could be +/- but just report positive
+                    fitAmplitude = amplitude
+                    if mask.sum() == len(p0):
+                        print(f"Warning: fit for Bit {iB} has no degrees of freedom ({mask.sum()} bins, {len(p0)} parameters)")
                     ax.plot(bin_centers[mask], y_fit[mask], color='r', label='Gaussian Fit''\n'fr'({mean:.2f},{std_dev:.2f})', alpha=0.5) # fit
-                except:
-                    print("Fit failed")
+                except Exception as e:
+                    print(f"Fit failed for {name} Setting{iS} Bit{iB}: {type(e).__name__}: {e}")
 
                 # double gaussian fit
                 # p01 = list(config["p0s"][iB])
@@ -154,10 +200,13 @@ for name, config in pltConfig.items():
             # limits
             ax.set_xlim(bins[0], bins[-1])
             print("updated code/plots")
-            if config["ylim"] is not None:
+            # the hardcoded ylim is tuned per chip; keep it when it covers this chip's
+            # histogram and fit peak, otherwise expand so neither is cut off the canvas
+            yMax = max(hist_vals) if fitAmplitude is None else max(max(hist_vals), fitAmplitude)
+            if config["ylim"] is not None and config["ylim"][1] >= 1.05 * yMax:
                 ax.set_ylim(config["ylim"])
             else:
-                ax.set_ylim(0, 1.25 * max(hist_vals))
+                ax.set_ylim(0, 1.25 * yMax)
 
                 
             # ax.set_ylim(-0.05, 1.05)

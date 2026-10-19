@@ -18,12 +18,12 @@ NBIT = 3 # number of bits
 
 # helper function to handle in file path correctly
 def handleInput(inFilePath):
-    
+    print("print inFilePath", inFilePath)
     inPathList = inFilePath
     # handle custom path names
     if "MatrixNPix" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "nPix*")
-    elif "MatrixVTH" in inPathList and "*" not in inPathList:
+    elif ("MatrixVTH" in inPathList or "linearity" in inPathList) and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "vth*")
     elif "MatrixIbias" in inPathList and "*" not in inPathList:
         inPathList = os.path.join(inPathList, "Ibias*")
@@ -39,7 +39,7 @@ def handleInput(inFilePath):
     # glob
     inPathList = list(sorted(glob.glob(inPathList)))
     inPathList = [i for i in inPathList if all(x not in i for x in ["plots"])]
-
+    print("print inPathList ", inPathList)
     # Sort the list based on the number in the final directory
     try:
         def extract_number(path):
@@ -78,9 +78,9 @@ def inspectPath(inPath):
     split = inPath.split("/")
     info = {}
     # get the date and test type
-    info["date"] = [i for i in split if "2025" in i][0].split("_")[0]
-    info["time"] = [i for i in split if "2025" in i][0].split("_")[1]
-    info["testType"] = [i for i in split if "2025" in i][0].split("_")[2]
+    info["date"] = [i for i in split if "2026" in i][0].split("_")[0]
+    info["time"] = [i for i in split if "2026" in i][0].split("_")[1]
+    info["testType"] = [i for i in split if "2026" in i][0].split("_")[2]
 
     # now get all the other configurations with number values
     matches = re.findall(r'([a-zA-Z]+)([0-9.]+)', inPath)
@@ -196,7 +196,7 @@ def testInfoForFeatures(info):
     if info["testType"] in ["MatrixNPix", "Single"]:
         t_.append(info["nPix"] if info["nPix"] is not None else -1)
 
-    elif info["testType"] == "MatrixVTH":
+    elif info["testType"] in ["MatrixVTH", "linearity"]:
         t_.append(info["vth"])
     elif info["testType"] == "MatrixCvG":
         t_.append(info["nPix"])
@@ -346,8 +346,8 @@ def analysis(config):
         return features, nelectron_asics, data
     
     # default analysis settings
-    elif info["testType"] in ["Single", "MatrixNPix", "MatrixVTH", "MatrixIbias", "MatrixInjDly", "MatrixBxCLKDly", "MatrixPulseGenFall", "MatrixCalibration"]:
-        
+    elif info["testType"] in ["Single", "MatrixNPix", "MatrixVTH", "linearity", "MatrixIbias", "MatrixInjDly", "MatrixBxCLKDly", "MatrixPulseGenFall", "MatrixCalibration"]:
+
         info = inspectPath(config["inPath"])
         files = getFileList(config["inPath"])
         v_asics, nelectron_asics, data = loadData(info, files)
@@ -368,7 +368,7 @@ def analysis(config):
                 data = data.reshape(1, data.shape[0], data.shape[1], data.shape[2])  # (1, nPixel, nBit, nVasic)
 
 
-        elif info["testType"] in ["MatrixVTH", "MatrixIbias", "MatrixInjDly", "MatrixBxCLKDly", "MatrixPulseGenFall"]:
+        elif info["testType"] in ["MatrixVTH", "linearity", "MatrixIbias", "MatrixInjDly", "MatrixBxCLKDly", "MatrixPulseGenFall"]:
             data = data.reshape(1, 1, NBIT, data.shape[1])
         else:
             print("Leaving data shape as it is for test type: ", info["testType"])

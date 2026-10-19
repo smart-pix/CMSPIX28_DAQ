@@ -131,7 +131,8 @@ for name, config in pltConfig.items():
             y_ = features[iS:,:,iB,config["idx"]].flatten()
             mask = y_ > 0
             # plot
-            x_transformed = ibias_transform_func(x_[mask])
+            x_transformed = x_[mask]
+            # x_transformed = ibias_transform_func(x_[mask])
 
             ax.plot(x_transformed, y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
         
@@ -178,7 +179,7 @@ for name, config in pltConfig.items():
 
         # Set exact major ticks
         ax.set_xticks(custom_ticks)
-        ax.set_xlim(0, 5) #21)
+        ax.set_xlim(0, 20) #21)
 
         # remove sub ticks
         ax.tick_params(axis='x', which='minor', bottom=False, top=False)

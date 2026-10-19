@@ -50,7 +50,7 @@ pltConfig["scurve_mean"] = {
     "legLoc" : "lower right"
 }
 pltConfig["scurve_std"] = {
-    "xlabel": r"V$_{\mathrm{TH}}$ Per Bit [mV]",
+    "xlabel": r"Q$_{\mathrm{TH}}$ Per Bit [e-]",
     "ylabel": r"S-Curve $\sigma$ [e$^{-}$]",
     "idx" : 3,
     "fit" : None,
@@ -102,7 +102,7 @@ for name, config in pltConfig.items():
     # plot
     color = ["blue", "red", "orange"]
     for iS in range(features.shape[0]):
-        
+        print(features.shape)
         # set up figure
         fig, ax = plt.subplots(figsize=(6,6))
         ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
@@ -118,9 +118,11 @@ for name, config in pltConfig.items():
             x_ = features[iS:,:,iB,0].flatten()
             if config["vthPerBit"]:
                 x_ = vth_to_vthPerBit(x_, iB)
+            else:
+                x_ = features[iS:,:,iB,2].flatten()
             # get y values
             y_ = features[iS:,:,iB,config["idx"]].flatten()
-            mask = y_ > 0
+            mask = y_ >0
             # plot
             ax.plot(x_[mask], y_[mask], label=f'Bit {iB}', color=color[iB], marker='o', linestyle='-', markersize=4)
         
