@@ -285,7 +285,11 @@ def plotPixelMap(values, zlabel, name):
 # run
 #-----------------------------------------------------------------------
 testType = info["testType"]
-overlay = timingOverlay(runSettings(inPath), args.injOffset, args.anaRise, args.bxclkRise) if testType in ("PulseDelayScanVTH", "PulseDelayScanMatrix") else None
+settings = runSettings(inPath)
+# FW mode: the delay is the pulse generator offset plus the firmware injection_delay steps, not the pulse generator delay alone
+if settings.get("delayMode") == "FW" or "_dlyModeFW" in inPath:
+    xlabel = "Delay Offset [ns]"
+overlay = timingOverlay(settings, args.injOffset, args.anaRise, args.bxclkRise) if testType in ("PulseDelayScanVTH", "PulseDelayScanMatrix") else None
 if overlay is None and testType in ("PulseDelayScanVTH", "PulseDelayScanMatrix"):
     print("No --injOffset given: 2D maps without the timing overlay")
 
