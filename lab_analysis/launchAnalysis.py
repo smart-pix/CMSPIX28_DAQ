@@ -31,8 +31,8 @@ if __name__ == "__main__":
         print(f"Processing folder: {folder}")
         info = inspectPath(folder)
         #print("test_2")
-        # pulse generator delay scans have delay_*.npy instead of vasic_*.npy, no S-curve analysis
-        if "PulseDelayScan" in folder:
+        # pulse generator delay scans (PulseDelayScan*, ScurveDelaySweep*) have their own analysis, no S-curve fit
+        if "PulseDelayScan" in folder or "ScurveDelaySweep" in folder:
             try:
                 cmd = ["python", "PulseDelayScan.py", "-i", folder]
                 for opt in ["injOffset", "anaRise", "bxclkRise"]:

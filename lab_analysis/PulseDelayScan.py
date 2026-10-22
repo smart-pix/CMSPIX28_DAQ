@@ -14,9 +14,12 @@ from Analyze import inspectPath, NBIT
 
 # Analysis of the pulse generator delay scans (CMSPIX28Spacely_Subroutines_B6_DelayScan.py)
 # Input is the test folder:
-#   PulseDelayScan       : <folder>/delay_<ns>.npy
-#   PulseDelayScanVTH    : <folder>/vth<V>/delay_<ns>.npy
-#   PulseDelayScanMatrix : <folder>/nPix<n>/vth<V>/delay_<ns>.npy
+#   PulseDelayScan         : <folder>/delay_<ns>.npy
+#   PulseDelayScanVTH      : <folder>/vth<V>/delay_<ns>.npy
+#   PulseDelayScanMatrix   : <folder>/nPix<n>/vth<V>/delay_<ns>.npy
+#   ScurveDelaySweep       : <folder>/delay_<ns>/vth_<V>.npy          (threshold swept at every delay, same plots as PulseDelayScanVTH)
+#   ScurveDelaySweepMatrix : <folder>/nPix<n>/delay_<ns>/vth_<V>.npy  (same plots as PulseDelayScanMatrix)
+# The ScurveDelaySweep plots are named ScurveDelaySweep_* instead of PulseDelayScan_*
 # Each npy has shape (nsample, 3) with the 3 bits of the pixel for every sample
 # Outputs in <folder>/plots (or -o):
 #   PulseDelayScan       : PulseDelayScan_hitRate_Pixel<n>.pdf (hit rate vs delay per bit), pulse_delay_data.npz
@@ -110,6 +113,32 @@ def loadVthSweep(path):
     return (np.array(vths), delays[0][:nDelay],
             np.stack([h[:nDelay] for h in hitRate], 0),   # (nVth, nDelay, bit) in %
             np.stack([n[:nDelay] for n in nSample], 0))   # (nVth, nDelay)
+
+def loadScurveDelaySweep(path):
+    # hit rate per threshold, delay and bit for every delay_<ns> sub folder with vth_<V>.npy files in path
+    dlyDirs = [d for d in glob.glob(os.path.join(path, "delay_*")) if os.path.isdir(d)]
+    dlyDirs = sorted(dlyDirs, key=lambda x: float(re.search(r'delay_([-\d.]+)$', x).group(1)))
+    vths, delays, hitRate, nSample = [], [], [], []
+    for d in dlyDirs:
+        files = glob.glob(os.path.join(d, "vth_*.npy"))
+        if len(files) == 0:
+            print(f"No vth_*.npy files in {d}. Skipping.")
+            continue
+        files = sorted(files, key=lambda x: float(re.search(r'vth_([\d.]+)\.npy', x).group(1)))
+        x = [np.load(f) for f in files] # (nsample, bit) per threshold
+        vths.append(np.array([1000*float(re.search(r'vth_([\d.]+)\.npy', f).group(1)) for f in files])) # mV
+        delays.append(float(re.search(r'delay_([-\d.]+)$', d).group(1)))
+        hitRate.append(100*np.array([i.mean(0) for i in x]))
+        nSample.append(np.array([i.shape[0] for i in x]))
+    if len(delays) == 0:
+        return None
+    # an aborted sweep can leave the last delay with fewer thresholds, keep the common ones
+    nVth = min(len(v) for v in vths)
+    if any(len(v) != nVth for v in vths):
+        print(f"{path}: not all delays have the same number of thresholds, keeping the first {nVth}")
+    return (vths[0][:nVth], np.array(delays),
+            np.stack([h[:nVth] for h in hitRate], 1),   # (nVth, nDelay, bit) in %
+            np.stack([n[:nVth] for n in nSample], 1))   # (nVth, nDelay)
 
 #-----------------------------------------------------------------------
 # helpers
@@ -235,7 +264,7 @@ def plotHitMaps(vths, delays, hitRate, nPix, plotDir):
         edges = binEdges(delays)
         drawTiming(ax, overlay, edges[0], edges[-1])
         ax.set_xlim(edges[0], edges[-1])
-        save(fig, os.path.join(plotDir, f"PulseDelayScan_hitMap_Bit{iB}.pdf"))
+        save(fig, os.path.join(plotDir, f"{prefix}_hitMap_Bit{iB}.pdf"))
 
 def plotCumulative(vths, hitRate, nPix, plotDir):
     # hit rate summed over all delays (fraction of all samples with a hit) vs threshold, per bit
@@ -252,7 +281,7 @@ def plotCumulative(vths, hitRate, nPix, plotDir):
         text.set_fontweight('bold')
     SetTicks(ax)
     labels(ax, nPix)
-    save(fig, os.path.join(plotDir, "PulseDelayScan_cumulativeHitRate.pdf"))
+    save(fig, os.path.join(plotDir, f"{prefix}_cumulativeHitRate.pdf"))
     return cumulative
 
 def plotPixelMap(values, zlabel, name):
@@ -289,8 +318,12 @@ settings = runSettings(inPath)
 # FW mode: the delay is the pulse generator offset plus the firmware injection_delay steps, not the pulse generator delay alone
 if settings.get("delayMode") == "FW" or "_dlyModeFW" in inPath:
     xlabel = "Delay Offset [ns]"
-overlay = timingOverlay(settings, args.injOffset, args.anaRise, args.bxclkRise) if testType in ("PulseDelayScanVTH", "PulseDelayScanMatrix") else None
-if overlay is None and testType in ("PulseDelayScanVTH", "PulseDelayScanMatrix"):
+mapTypes = ("PulseDelayScanVTH", "PulseDelayScanMatrix", "ScurveDelaySweep", "ScurveDelaySweepMatrix")
+# ScurveDelaySweep: threshold swept at every delay, same plots with their own names
+prefix = "ScurveDelaySweep" if testType.startswith("ScurveDelaySweep") else "PulseDelayScan"
+loadMap = loadScurveDelaySweep if testType.startswith("ScurveDelaySweep") else loadVthSweep
+overlay = timingOverlay(settings, args.injOffset, args.anaRise, args.bxclkRise) if testType in mapTypes else None
+if overlay is None and testType in mapTypes:
     print("No --injOffset given: 2D maps without the timing overlay")
 
 if testType == "PulseDelayScan":
@@ -302,8 +335,8 @@ if testType == "PulseDelayScan":
     np.savez(os.path.join(outDir, "pulse_delay_data.npz"), delay_ns=delays, hitRate=hitRate, hitRateErr=hitRateErr, nSample=nSample)
     plotHitRateVsDelay(delays, hitRate, hitRateErr, nPix, outDir)
 
-elif testType == "PulseDelayScanVTH":
-    data = loadVthSweep(inPath)
+elif testType in ("PulseDelayScanVTH", "ScurveDelaySweep"):
+    data = loadMap(inPath)
     if data is None:
         raise SystemExit(f"No data found in {inPath}")
     vths, delays, hitRate, nSample = data
@@ -313,14 +346,14 @@ elif testType == "PulseDelayScanVTH":
     np.savez(os.path.join(outDir, "pulse_delay_data.npz"), delay_ns=delays, vth_mV=vths, hitRate=hitRate, cumulativeHitRate=cumulative, nSample=nSample, contour=args.contour)
     print(f"Data saved to {os.path.join(outDir, 'pulse_delay_data.npz')}")
 
-elif testType == "PulseDelayScanMatrix":
+elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
     pixDirs = [d for d in glob.glob(os.path.join(inPath, "nPix*")) if os.path.isdir(d)]
     pixDirs = sorted(pixDirs, key=lambda x: int(re.search(r'nPix(\d+)$', x).group(1)))
     pixels, vmax, vhalf, width, atEdge = [], [], [], [], []
     hitRates, vthsAll, delaysAll = {}, None, None
     for d in pixDirs:
         nPix = int(re.search(r'nPix(\d+)$', d).group(1))
-        data = loadVthSweep(d)
+        data = loadMap(d)
         if data is None:
             print(f"No data for pixel {nPix}. Skipping.")
             continue
@@ -353,7 +386,7 @@ elif testType == "PulseDelayScanMatrix":
 
     # summary: width at half maximum threshold, map and histogram per bit
     for iB in range(NBIT):
-        plotPixelMap({p: w for p, w in zip(pixels, width[:,iB])}, f"Width at V$_{{th}}^{{max}}$/2, Bit {iB} [ns]", os.path.join(outDir, f"PulseDelayScan_widthAtHalfMaxVth_map_Bit{iB}.pdf"))
+        plotPixelMap({p: w for p, w in zip(pixels, width[:,iB])}, f"Width at V$_{{th}}^{{max}}$/2, Bit {iB} [ns]", os.path.join(outDir, f"{prefix}_widthAtHalfMaxVth_map_Bit{iB}.pdf"))
     fig, ax = plt.subplots(figsize=(6,6))
     ax.set_xlabel(r"Width at V$_{th}^{max}$/2 [ns]", fontsize=18, labelpad=10)
     ax.set_ylabel("Pixels", fontsize=18, labelpad=10)
@@ -367,7 +400,7 @@ elif testType == "PulseDelayScanMatrix":
         legend = ax.legend(fontsize=11, loc="upper left", bbox_to_anchor=(0.03, 0.68), frameon=False)
     SetTicks(ax)
     labels(ax, extra=f"{len(pixels)} pixels")
-    save(fig, os.path.join(outDir, "PulseDelayScan_widthAtHalfMaxVth_hist.pdf"))
+    save(fig, os.path.join(outDir, f"{prefix}_widthAtHalfMaxVth_hist.pdf"))
 
 
 else:
