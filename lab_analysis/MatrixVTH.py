@@ -9,18 +9,20 @@ import argparse
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
-from Analyze import inspectPath
+from Analyze import inspectPath, addUnitArgs, xAxisUnit, scaleFeatures, VtomV
 
 
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
 parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
+addUnitArgs(parser)
 args = parser.parse_args()
 
-# Load data and info
+# Load data and info, features converted from V to mV or electrons (see addUnitArgs in Analyze.py)
 inData = np.load(args.inFilePath)
-features = inData["features"]
+scale, offset, unit = xAxisUnit(args)
+features = scaleFeatures(inData["features"], scale, offset)
 
 # get information
 info = inspectPath(os.path.dirname(args.inFilePath))
@@ -105,9 +107,10 @@ for name, config in pltConfig.items():
         
         # set up figure
         fig, ax = plt.subplots(figsize=(6,6))
-        ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
-        ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
-        
+        # StaticPulse: the folder value is the injected amplitude, not Vth
+        ax.set_xlabel(r"V$_{asic}$ [mV]" if args.staticPulse else config["xlabel"], fontsize=18, labelpad=10)
+        ax.set_ylabel(config["ylabel"].replace(r"e$^{-}$", unit), fontsize=18, labelpad=10)
+
         # set y limit
         maxValue = np.max(features[:,:,:,config["idx"]])
         ylimMax = 1.35 * maxValue
@@ -115,7 +118,7 @@ for name, config in pltConfig.items():
 
         for iB in range(3):
             # get vth per bit
-            x_ = features[iS:,:,iB,0].flatten()
+            x_ = features[iS:,:,iB,0].flatten() * VtomV # folder value in V, shown in mV
             if config["vthPerBit"]:
                 x_ = vth_to_vthPerBit(x_, iB)
             # get y values
@@ -128,9 +131,13 @@ for name, config in pltConfig.items():
             if config["fit"] == "linear":
                 popt, pcov = curve_fit(linear_func, x_[mask], y_[mask])
                 a, b = popt
-                CvG = 1/a*1000000
                 fit_label = f'y = {a:.2f}x {"-" if b < 0 else "+"} {abs(b):.2f}'
-                fit_label = f'CvG = {CvG:.2f}uV/e-'
+                # x in mV: CvG = 1/slope [mV/e-] = 1000/slope [uV/e-], only meaningful for electrons vs Vth
+                if unit != "mV" and not args.staticPulse:
+                    CvG = 1/a*1000
+                    fit_label = f'CvG = {CvG:.2f}uV/e-'
+                else:
+                    fit_label = f'slope = {a:.3f} {unit}/mV'
                 ax.plot(x_[mask], linear_func(x_[mask], *popt), linestyle='--', color = color[iB], alpha=0.5)
                 # Calculate the angle of the line for rotation
                 if config["vthPerBit"]:

@@ -16,6 +16,48 @@ VtomV = 1000 # convert V to mV
 NPIXEL = 256 # number of pixels
 NBIT = 3 # number of bits
 
+# Vth -> electrons per bit from past CvG fits, threshold [e-] = a * Vth [V] + b (the conversions commented out in loadData)
+VTH_TO_E_FITS = [(16542.60, 304.61), (16194.57, 344.11), (16416.97, 356.38)] # (a, b) for bit 0, 1, 2
+
+# S-curve units: Analyze.py stores the scan axis (nelectron_asics) and the 50% / mu / sigma features in V
+# The plotting scripts convert them for display with the options from addUnitArgs():
+#   default                                         : mV
+#   --electrons                                     : injected charge, Q = V * Pgain * Cin / Qe
+#   Vth axes (--staticPulse S-curves, delay scans):
+#     --cvg                                         : electrons per bit from VTH_TO_E_FITS (--cvg alone also turns on --electrons)
+#     --cvg <uV/e-> [--vthOffset <mV>]              : electrons = (Vth - vthOffset) / CvG, the same for all bits
+def addUnitArgs(parser):
+    parser.add_argument('--electrons', action="store_true", help="Show the S-curve axis and features in electrons instead of mV")
+    parser.add_argument('--staticPulse', action="store_true", help="PreProgSCurveBurst_StaticPulse data: the S-curve axis is the swept Vth, converted to electrons with --cvg")
+    parser.add_argument('--cvg', '--CvG', nargs='?', const="fits", default=None, help="Convert Vth axes to electrons: alone, with the per bit CvG fits (VTH_TO_E_FITS); or a pixel gain [uV/e-] for all bits")
+    parser.add_argument('--vthOffset', type=float, default=0, help="Vth [mV] at 0 e-, used with a --cvg value")
+
+def xAxisUnit(args, vthAxis=None):
+    # returns (scale, offset [V], unit) per bit (arrays of NBIT): shown value = (value [V] - offset) * scale, widths (sigma) are only scaled
+    # vthAxis: the axis is a threshold (default: args.staticPulse)
+    vthAxis = args.staticPulse if vthAxis is None else vthAxis
+    ones = np.ones(NBIT)
+    if vthAxis and args.cvg is not None:
+        if args.cvg == "fits":
+            a, b = np.array(VTH_TO_E_FITS).T
+            print("Vth to electrons per bit (CvG fits): " + ", ".join(f"bit {i}: {1e6/a[i]:.1f} uV/e-, {-b[i]/a[i]*VtomV:.1f} mV at 0 e-" for i in range(NBIT)))
+            return a, -b/a, r"e$^{-}$"
+        return 1/(float(args.cvg)*1e-6) * ones, args.vthOffset/VtomV * ones, r"e$^{-}$"
+    if args.electrons and vthAxis:
+        print("--electrons on a Vth axis needs --cvg (per bit CvG fits) or --cvg <uV/e-> to convert to electrons, showing mV")
+    elif args.electrons:
+        return Pgain * Cin / Qe * ones, 0 * ones, r"e$^{-}$"
+    return VtomV * ones, 0 * ones, "mV"
+
+def scaleFeatures(features, scale, offset):
+    # convert the last three feature columns (50% point, mu, sigma; stored in V) for display, per bit (features axis 2 is the bit)
+    # -999 (no S-curve) and -1 (fit failed) are kept as they are
+    f = np.array(features, dtype=float)
+    for i, off in zip([-3, -2, -1], [offset, 0*offset, 0*offset]):
+        good = (f[..., i] != -999) & (f[..., i] != -1)
+        f[..., i] = np.where(good, (f[..., i] - off) * scale, f[..., i])  # (..., bit) * (bit,)
+    return f
+
 # helper function to handle in file path correctly
 def handleInput(inFilePath):
     

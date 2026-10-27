@@ -10,19 +10,27 @@ import argparse
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
-from Analyze import inspectPath
+from Analyze import inspectPath, addUnitArgs, xAxisUnit
 
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
 parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
+addUnitArgs(parser)
 args = parser.parse_args()
 
 # input file
 inData = np.load(args.inFilePath)
 features = inData["features"]
-nelectron_asics = inData["nelectron_asics"]
 scurve = inData["scurve"]
+
+# S-curve axis, stored in V: mV or electrons, per bit (see addUnitArgs in Analyze.py)
+scale, offset, unit = xAxisUnit(args)
+nelectron_asics = (inData["nelectron_asics"][None, :] - offset[:, None]) * scale[:, None] # (bit, scan step)
+if args.staticPulse:
+    xlabel = f"Threshold [{unit}]" if unit != "mV" else r"V$_{th}$ [mV]"
+else:
+    xlabel = f"Injected Charge [{unit}]" if unit != "mV" else r"V$_{asic}$ [mV]"
 print(scurve.shape)
 
 # get file information
@@ -49,7 +57,7 @@ for iS in range(nSettings):
 
     # set up figure
     fig, ax = plt.subplots(figsize=(6,6))
-    ax.set_xlabel("Electrons", fontsize=18, labelpad=10)
+    ax.set_xlabel(xlabel, fontsize=18, labelpad=10)
     ax.set_ylabel("Fraction of Samples", fontsize=18, labelpad=10)
     ax.set_ylim(0, 1.24)
 
@@ -70,7 +78,7 @@ for iS in range(nSettings):
                 color = bit_colors[iB]
             # plot
             # print(iS, iP, iB, scurve[iS, iP, iB])
-            ax.plot(nelectron_asics, scurve[iS, iP, iB], color=color, label=label) #, marker='o', ms=5)
+            ax.plot(nelectron_asics[iB], scurve[iS, iP, iB], color=color, label=label) #, marker='o', ms=5)
             # print(f"Pixel {iP}, Bit {iB} (50%, mu, sigma): ", features[iS, iP, iB][1:])
 
     # add legend

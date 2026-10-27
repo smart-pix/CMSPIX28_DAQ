@@ -8,7 +8,7 @@ hep.style.use("ATLAS")
 
 # local imports
 from SmartPixStyle import *
-from Analyze import inspectPath
+from Analyze import inspectPath, addUnitArgs, xAxisUnit, scaleFeatures
 
 grid = [
     [63,  62,  59,  58,  55,  54,  51,  50,  47,  46,  43,  42,  39,  38,  35,  34,  31,  30,  27,  26,  23,  22,  19,  18,  15,  14,  11,  10,   7,   6,   3,    2],
@@ -25,11 +25,13 @@ grid = [
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
 parser.add_argument("-o", '--outDir', type=str, default=None, help='Output path')
+addUnitArgs(parser)
 args = parser.parse_args()
 
-# input file
+# input file, features converted from V to mV or electrons (see addUnitArgs in Analyze.py)
 inData = np.load(args.inFilePath)
-features = inData["features"]
+scale, offset, unit = xAxisUnit(args)
+features = scaleFeatures(inData["features"], scale, offset)
 # expect that features is of shape (nsetting, npix, nbit, vasic step)
 # expect that for MatrixNPix test that there is only one setting
 print(features.shape)
@@ -97,7 +99,7 @@ for iS in range(features.shape[0]):
                 for j in range(len(grid[i])):
                     pixel_number = grid[i][j]
                     if pixel_number in bit[:, 0]:
-                        output_array[len(grid)-1-i][j] = bit[bit[:, 0] == pixel_number, fIdx] # set this so that the order is correct top to bottom len(grid)-1-i
+                        output_array[len(grid)-1-i][j] = bit[bit[:, 0] == pixel_number, fIdx][0] # set this so that the order is correct top to bottom len(grid)-1-i
                     else:
                         output_array[len(grid)-1-i][j] = -999
 
@@ -120,15 +122,16 @@ for iS in range(features.shape[0]):
                 bins=[binsy, binsx], 
                 weights=output_array.flatten(), 
                 cmap=cmap,
-                vmin=pltConfig[fIdx-1]["zlim"][iB][0], 
-                vmax=pltConfig[fIdx-1]["zlim"][iB][1]
+                # fixed color range in electrons, the data range otherwise
+                vmin=pltConfig[fIdx-1]["zlim"][iB][0] if unit != "mV" else None,
+                vmax=pltConfig[fIdx-1]["zlim"][iB][1] if unit != "mV" else None
             )
             
             # set the colorbar
             cbar = fig.colorbar(cax[3], ax=ax, orientation='horizontal', location='top')
             cbar.ax.xaxis.set_ticks_position('top')
             cbar.ax.xaxis.set_label_position('top')
-            cbar.set_label(pltConfig[fIdx - 1]["zlabel"], fontsize=18, labelpad=10)
+            cbar.set_label(pltConfig[fIdx - 1]["zlabel"].replace(r"e$^{-}$", unit), fontsize=18, labelpad=10)
             ax.set_xlabel('Column', fontsize=18, labelpad=10)
             ax.set_ylabel('Row', fontsize=18, labelpad=10)
             ax.grid(which='both', color='black', linestyle='-', linewidth=1, alpha=1)

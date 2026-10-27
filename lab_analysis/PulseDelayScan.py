@@ -10,7 +10,7 @@ import mplhep as hep
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
-from Analyze import inspectPath, NBIT
+from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 
 # Analysis of the pulse generator delay scans (CMSPIX28Spacely_Subroutines_B6_DelayScan.py)
 # Input is the test folder:
@@ -49,7 +49,15 @@ parser.add_argument('--injOffset', type=float, default=None, help='Scope: time [
 parser.add_argument('--anaRise', type=float, default=None, help='Scope: time [ns] from the scanLoad rising edge to the BxCLK_ANA rising edge (sampling edge)')
 parser.add_argument('--bxclkRise', type=float, default=None, help='Scope: time [ns] from the scanLoad rising edge to the BxCLK rising edge')
 parser.add_argument('--bxclkPeriod', type=str, default='28', help='bxclk_period (hex) if the run has no scan_settings.json, for the scanLoad falling edge')
+addUnitArgs(parser) # --cvg (per bit CvG fits) or --cvg <uV/e-> [--vthOffset <mV>]: threshold axis in electrons
 args = parser.parse_args()
+
+# threshold axis: mV, or electrons through the pixel gain, per bit (see addUnitArgs in Analyze.py)
+vthScale, vthOffset, vthUnit = xAxisUnit(args, vthAxis=True)
+vthLabel = f"Threshold [{vthUnit}]" if vthUnit != "mV" else r"V$_{th}$ [mV]"
+def vthShow(vths, iB):
+    # thresholds in mV to the shown unit for bit iB
+    return (np.asarray(vths)/VtomV - vthOffset[iB]) * vthScale[iB]
 
 inPath = os.path.normpath(args.inPath)
 info = inspectPath(inPath)
@@ -248,7 +256,9 @@ def plotHitRateVsDelay(delays, hitRate, hitRateErr, nPix, plotDir):
 
 def plotHitMaps(vths, delays, hitRate, nPix, plotDir):
     # 2D hit map per bit: x = delay, y = threshold, z = hit rate
+    vthsMV = vths
     for iB in range(NBIT):
+        vths = vthShow(vthsMV, iB)
         z = hitRate[:,:,iB]
         fig, ax = plt.subplots(figsize=(7,6))
         mesh = ax.pcolormesh(binEdges(delays), binEdges(vths), z, cmap=plt.cm.viridis, vmin=0, vmax=100)
@@ -259,7 +269,7 @@ def plotHitMaps(vths, delays, hitRate, nPix, plotDir):
         cbar.ax.xaxis.set_label_position('top')
         cbar.set_label(f"Hit Rate, Bit {iB} [%] (white: {args.contour:.0f}%)", fontsize=18, labelpad=10)
         ax.set_xlabel(xlabel, fontsize=18, labelpad=10)
-        ax.set_ylabel(r"V$_{th}$ [mV]", fontsize=18, labelpad=10)
+        ax.set_ylabel(vthLabel, fontsize=18, labelpad=10)
         SetTicks(ax)
         edges = binEdges(delays)
         drawTiming(ax, overlay, edges[0], edges[-1])
@@ -269,12 +279,13 @@ def plotHitMaps(vths, delays, hitRate, nPix, plotDir):
 def plotCumulative(vths, hitRate, nPix, plotDir):
     # hit rate summed over all delays (fraction of all samples with a hit) vs threshold, per bit
     cumulative = hitRate.mean(axis=1) # (nVth, bit)
+    vthsBit = [vthShow(vths, iB) for iB in range(NBIT)] # the conversion to electrons can differ per bit
     fig, ax = plt.subplots(figsize=(6,6))
-    ax.set_xlabel(r"V$_{th}$ [mV]", fontsize=18, labelpad=10)
+    ax.set_xlabel(vthLabel, fontsize=18, labelpad=10)
     ax.set_ylabel("Cumulative Hit Rate, All Delays [%]", fontsize=18, labelpad=10)
     for iB in range(NBIT):
-        ax.plot(vths, cumulative[:,iB], label=f'Bit {iB}', color=color[iB], linestyle='-', marker='o', markersize=3)
-    ax.set_xlim(vths.min(), vths.max())
+        ax.plot(vthsBit[iB], cumulative[:,iB], label=f'Bit {iB}', color=color[iB], linestyle='-', marker='o', markersize=3)
+    ax.set_xlim(min(v.min() for v in vthsBit), max(v.max() for v in vthsBit))
     ax.set_ylim(0, max(1, cumulative.max()) * 1.6)
     legend = ax.legend(fontsize=15, loc="upper right")
     for text in legend.get_texts():

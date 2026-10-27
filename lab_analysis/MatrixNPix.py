@@ -11,7 +11,7 @@ import math
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
-from Analyze import inspectPath
+from Analyze import inspectPath, addUnitArgs, xAxisUnit, scaleFeatures
 
 # Gaussian function to fit
 def gaussian(x, amplitude, mean, std_dev):
@@ -26,11 +26,15 @@ def gaussian(x, amplitude, mean, std_dev):
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
 parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
+addUnitArgs(parser)
 args = parser.parse_args()
 
-# input file
+# input file, features converted from V to mV or electrons (see addUnitArgs in Analyze.py)
 inData = np.load(args.inFilePath)
-features = inData["features"]
+scale, offset, unit = xAxisUnit(args)
+features = scaleFeatures(inData["features"], scale, offset)
+# histogram bin width and range rounding in the shown unit
+binStep, binRound = (20, 100) if unit != "mV" else (1, 5)
 
 # get info
 info = inspectPath(os.path.dirname(args.inFilePath))
@@ -84,17 +88,17 @@ for name, config in pltConfig.items():
             # bins = np.linspace(config["binConfigs"][iB][0], 
             #                    config["binConfigs"][iB][1], 
             #                    config["binConfigs"][iB][2])
-            step_size = 20
+            step_size = binStep
             if("sigma" in config["xlabel"]):
-                step_size = 10
-            xlim_min, xlim_max = max(0, math.floor(min(temp) / 100) * 100 - 100), math.ceil(max(temp) / 100) * 100 + 100
-            nbins = (xlim_max - xlim_min) // step_size
+                step_size = binStep / 2
+            xlim_min, xlim_max = max(0, math.floor(min(temp) / binRound) * binRound - binRound), math.ceil(max(temp) / binRound) * binRound + binRound
+            nbins = int(round((xlim_max - xlim_min) / step_size))
             bins = np.linspace(xlim_min, xlim_max, nbins + 1)  # Add 1 to include the upper limit
 
             # set up figure
             fig, ax = plt.subplots(figsize=(6,6))
-            ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
-            ax.set_ylabel(config["ylabel"] + f" / {bins[1]-bins[0]}" + r" e$^{-}$", fontsize=18, labelpad=10)
+            ax.set_xlabel(config["xlabel"].replace(r"e$^{-}$", unit), fontsize=18, labelpad=10)
+            ax.set_ylabel(config["ylabel"] + f" / {bins[1]-bins[0]:g} {unit}", fontsize=18, labelpad=10)
         
             # plot
             # print(x[iS:,:,iB:,config["idx"]])
@@ -114,10 +118,10 @@ for name, config in pltConfig.items():
                 
                 try:
                     # set amplitude to max of hist values
-                    p0 = config["p0s"][iB]
-                    p0[0] = max(hist_vals)
                     mean = np.average(bin_centers, weights=hist_vals)
                     rms = np.sqrt(np.average((bin_centers - mean)**2, weights=hist_vals))
+                    # start from the histogram itself so the fit works in mV and in electrons
+                    p0 = [max(hist_vals), mean, rms]
                     # restrict fit to certain region
                     mask = bin_centers != np.nan
                     if "fitRange" in config.keys():

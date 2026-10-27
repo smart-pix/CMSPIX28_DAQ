@@ -9,18 +9,20 @@ from matplotlib.ticker import MaxNLocator
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
-from Analyze import inspectPath
+from Analyze import inspectPath, addUnitArgs, xAxisUnit, scaleFeatures
 
 
 # Argument parser
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("-i", '--inFilePath', type=str, required=True, help='Input file path')
 parser.add_argument("-o", '--outDir', type=str, default=None, help='Input file path')
+addUnitArgs(parser)
 args = parser.parse_args()
 
-# Load data and info
+# Load data and info, features converted from V to mV or electrons (see addUnitArgs in Analyze.py)
 inData = np.load(args.inFilePath)
-features = inData["features"]
+scale, offset, unit = xAxisUnit(args)
+features = scaleFeatures(inData["features"], scale, offset)
 
 # get information
 info = inspectPath(os.path.dirname(args.inFilePath))
@@ -112,7 +114,7 @@ for name, config in pltConfig.items():
         fig, ax = plt.subplots(figsize=(6,6))
         
         ax.set_xlabel(config["xlabel"], fontsize=18, labelpad=10)
-        ax.set_ylabel(config["ylabel"], fontsize=18, labelpad=10)
+        ax.set_ylabel(config["ylabel"].replace(r"e$^{-}$", unit), fontsize=18, labelpad=10)
         custom_ticks = [0, 1, 2, 3, 4, 5, 10, 15, 20]
         # ax.set_xticklabels([str(tick) for tick in custom_ticks])
         ax.xaxis.set_minor_locator(ticker.NullLocator())
