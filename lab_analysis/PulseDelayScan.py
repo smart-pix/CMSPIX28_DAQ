@@ -19,6 +19,7 @@ from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 #   PulseDelayScanMatrix   : <folder>/nPix<n>/vth<V>/delay_<ns>.npy
 #   ScurveDelaySweep       : <folder>/delay_<ns>/vth_<V>.npy          (threshold swept at every delay, same plots as PulseDelayScanVTH)
 #   ScurveDelaySweepMatrix : <folder>/nPix<n>/delay_<ns>/vth_<V>.npy  (same plots as PulseDelayScanMatrix)
+#   ScurveDelaySweepISource: <folder>/ISource<I>uA/delay_<ns>/vth_<V>.npy  (one pixel, several ISource10uA currents)
 # The ScurveDelaySweep plots are named ScurveDelaySweep_* instead of PulseDelayScan_*
 # Each npy has shape (nsample, 3) with the 3 bits of the pixel for every sample
 # Outputs in <folder>/plots (or -o):
@@ -29,6 +30,9 @@ from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 #   PulseDelayScanMatrix : the same two plots per pixel in nPix<n>/ (skip with --noPixelPlots)
 #                          PulseDelayScan_widthAtHalfMaxVth_map_Bit<b>.pdf (pixel map) and _hist.pdf
 #                          pulse_delay_matrix_data.npz
+#   ScurveDelaySweepISource : the 2D maps and cumulative hit rate per current in ISource<I>uA/
+#                             ScurveDelaySweep_vmax_vs_ISource.pdf, ScurveDelaySweep_widthAtHalfMaxVth_vs_ISource.pdf (per bit)
+#                             pulse_delay_isource_data.npz
 # Timing overlay on the 2D maps (needs --injOffset), from a scope measurement with the run's settings, all relative to the scanLoad rising edge:
 #   --injOffset : injection edge at the chip at delay offset 0      --anaRise : BxCLK_ANA rising edge      --bxclkRise : BxCLK rising edge
 #   an event at time t after the scanLoad rising edge is at delay offset t - injOffset on the maps
@@ -329,7 +333,7 @@ settings = runSettings(inPath)
 # FW mode: the delay is the pulse generator offset plus the firmware injection_delay steps, not the pulse generator delay alone
 if settings.get("delayMode") == "FW" or "_dlyModeFW" in inPath:
     xlabel = "Delay Offset [ns]"
-mapTypes = ("PulseDelayScanVTH", "PulseDelayScanMatrix", "ScurveDelaySweep", "ScurveDelaySweepMatrix")
+mapTypes = ("PulseDelayScanVTH", "PulseDelayScanMatrix", "ScurveDelaySweep", "ScurveDelaySweepMatrix", "ScurveDelaySweepISource")
 # ScurveDelaySweep: threshold swept at every delay, same plots with their own names
 prefix = "ScurveDelaySweep" if testType.startswith("ScurveDelaySweep") else "PulseDelayScan"
 loadMap = loadScurveDelaySweep if testType.startswith("ScurveDelaySweep") else loadVthSweep
@@ -413,6 +417,54 @@ elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
     labels(ax, extra=f"{len(pixels)} pixels")
     save(fig, os.path.join(outDir, f"{prefix}_widthAtHalfMaxVth_hist.pdf"))
 
+elif testType == "ScurveDelaySweepISource":
+    curDirs = [d for d in glob.glob(os.path.join(inPath, "ISource*uA")) if os.path.isdir(d)]
+    curDirs = sorted(curDirs, key=lambda x: float(re.search(r'ISource([-\d.]+)uA$', x).group(1)))
+    nPix = info.get("nPix", 0)
+    currents, vmax, width, atEdge, hitRates = [], [], [], [], []
+    for d in curDirs:
+        cur = float(re.search(r'ISource([-\d.]+)uA$', d).group(1))
+        data = loadMap(d)
+        if data is None:
+            print(f"No data for ISource10uA = {cur:.2f} uA. Skipping.")
+            continue
+        vths, delays, hitRate, nSample = data
+        plotDir = os.path.join(outDir, os.path.basename(d))
+        os.makedirs(plotDir, exist_ok=True)
+        plotHitMaps(vths, delays, hitRate, nPix, plotDir)
+        plotCumulative(vths, hitRate, nPix, plotDir)
+        res = [widthAtHalfMaxVth(vths, delays, hitRate[:,:,iB], args.contour) for iB in range(NBIT)]
+        currents.append(cur)
+        vmax.append([r[0] for r in res]); width.append([r[2] for r in res]); atEdge.append([r[3] for r in res])
+        hitRates.append(hitRate)
+        print(f"ISource10uA = {cur:.2f} uA: Vmax = {', '.join(f'{v:.1f}' for v in vmax[-1])} mV, width at Vmax/2 = {', '.join(f'{w:.1f}' for w in width[-1])} ns (bits 0, 1, 2)")
+
+    if len(currents) == 0:
+        raise SystemExit(f"No data found in {inPath}")
+    currents, vmax, width, atEdge = map(np.array, (currents, vmax, width, atEdge))
+    if atEdge.any():
+        print(f"WARNING: for {atEdge.sum()} current/bit combinations the hit window touches the edge of the delay scan at Vmax/2: the width is a lower limit. Widen the delay range.")
+    same = all(h.shape == hitRates[0].shape for h in hitRates)
+    np.savez(os.path.join(outDir, "pulse_delay_isource_data.npz"), isource_uA=currents, vmax_mV=vmax, widthAtHalfMaxVth_ns=width, widthAtScanEdge=atEdge,
+             vth_mV=vths, delay_ns=delays, hitRate=np.stack(hitRates, 0) if same else np.array([]), contour=args.contour)
+    print(f"Data saved to {os.path.join(outDir, 'pulse_delay_isource_data.npz')}")
+
+    # summary: maximum threshold and width at half maximum threshold vs current, per bit
+    for values, ylabel, name in [(vmax, r"V$_{th}^{max}$ [mV]", "vmax"), (width, r"Width at V$_{th}^{max}$/2 [ns]", "widthAtHalfMaxVth")]:
+        fig, ax = plt.subplots(figsize=(6,6))
+        ax.set_xlabel(r"ISource10uA [$\mu$A]", fontsize=18, labelpad=10)
+        ax.set_ylabel(ylabel, fontsize=18, labelpad=10)
+        for iB in range(NBIT):
+            ax.plot(currents, values[:,iB], label=f'Bit {iB}', color=color[iB], linestyle='-', marker='o', markersize=5)
+        good = values[np.isfinite(values)]
+        if len(good):
+            ax.set_ylim(0, good.max() * 1.6) # room for the labels
+        legend = ax.legend(fontsize=15, loc="upper right")
+        for text in legend.get_texts():
+            text.set_fontweight('bold')
+        SetTicks(ax)
+        labels(ax, nPix)
+        save(fig, os.path.join(outDir, f"{prefix}_{name}_vs_ISource.pdf"))
 
 else:
     raise SystemExit(f"Unknown test type {testType} for {inPath}")
