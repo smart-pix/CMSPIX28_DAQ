@@ -10,6 +10,8 @@ import mplhep as hep
 hep.style.use("ATLAS")
 
 from SmartPixStyle import *
+from scipy.optimize import curve_fit
+from scipy.stats import norm
 from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 
 # Analysis of the pulse generator delay scans (CMSPIX28Spacely_Subroutines_B6_DelayScan.py)
@@ -30,6 +32,10 @@ from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 #   PulseDelayScanMatrix : the same two plots per pixel in nPix<n>/ (skip with --noPixelPlots)
 #                          PulseDelayScan_widthAtHalfMaxVth_map_Bit<b>.pdf (pixel map) and _hist.pdf
 #                          pulse_delay_matrix_data.npz
+#   --noise (matrix, no injected charge): fit of the hit rate over all delays vs threshold with a falling Gaussian S-curve per pixel and bit,
+#                          hit rate = 100 * norm.sf(Vth, mu, sigma): mu = baseline [mV] (pedestal + comparator offset), sigma = noise [mV]
+#                          {prefix}_noise_{mu,sigma}_map_Bit<b>.pdf, _hist.pdf (bits overlaid), _bitDiff_hist.pdf, _matrixSCurve.pdf, noise_matrix_data.npz
+#                          (replaces the width at half maximum threshold summary)
 #   ScurveDelaySweepISource : the 2D maps and cumulative hit rate per current in ISource<I>uA/
 #                             ScurveDelaySweep_vmax_vs_ISource.pdf, ScurveDelaySweep_widthAtHalfMaxVth_vs_ISource.pdf (per bit)
 #                             pulse_delay_isource_data.npz
@@ -48,6 +54,7 @@ parser = argparse.ArgumentParser(description='Analyze pulse generator delay scan
 parser.add_argument("-i", '--inPath', type=str, required=True, help='Input test folder')
 parser.add_argument("-o", '--outDir', type=str, default=None, help='Output directory. Default is <inPath>/plots')
 parser.add_argument('--contour', type=float, default=50, help='Hit rate [%%] used for the 2D map contour and the width at half maximum threshold')
+parser.add_argument('--noise', action="store_true", help='Matrix scans without injected charge: fit the noise S-curve (baseline and sigma) of every pixel and bit instead of the width summary')
 parser.add_argument('--noPixelPlots', action="store_true", help='PulseDelayScanMatrix: only make the matrix summary plots, not the plots for every pixel')
 parser.add_argument('--injOffset', type=float, default=None, help='Scope: time [ns] from the scanLoad rising edge to the injection edge at the chip at delay offset 0. Enables the timing overlay on the 2D maps')
 parser.add_argument('--anaRise', type=float, default=None, help='Scope: time [ns] from the scanLoad rising edge to the BxCLK_ANA rising edge (sampling edge)')
@@ -325,6 +332,90 @@ def plotPixelMap(values, zlabel, name):
     ax.set_ylim(0, len(grid))
     save(fig, name)
 
+def fitNoise(vths, h):
+    # h: hit rate [%] vs threshold [mV] for one bit, no injected charge
+    # falling Gaussian S-curve: hit rate = 100 * P(noise + baseline > Vth) -> mu = baseline, sigma = noise (both mV)
+    # fit only if the curve falls from >= 80% to <= 20% inside the scan, else nan
+    if not (h.max() >= 80 and h[-1] <= 20):
+        return np.nan, np.nan, np.nan
+    i50 = np.argmax(h < 50)
+    v50 = np.interp(50, [h[i50], h[i50-1]], [vths[i50], vths[i50-1]]) if i50 > 0 else vths[0]
+    try:
+        (mu, sigma), _ = curve_fit(lambda x, m, sg: 100*norm.sf(x, m, sg), vths, h, p0=[v50, max(0.5, (vths[-1]-vths[0])/20)], bounds=((-np.inf, 1e-3), (np.inf, np.inf)))
+    except Exception:
+        return v50, np.nan, np.nan
+    return v50, mu, sigma
+
+def noiseSummary(pixels, noiseCurves):
+    # noise characterization of the matrix: baseline mu and noise sigma per pixel and bit
+    res = {p: [fitNoise(*(lambda v, h: (v, h[:,iB]))(*noiseCurves[p])) for iB in range(NBIT)] for p in pixels}
+    v50 = np.array([[r[0] for r in res[p]] for p in pixels])
+    mu = np.array([[r[1] for r in res[p]] for p in pixels])
+    sigma = np.array([[r[2] for r in res[p]] for p in pixels])
+    for p, m, sg in zip(pixels, mu, sigma):
+        print(f"Pixel {p}: baseline = {', '.join(f'{x:.2f}' for x in m)} mV, noise = {', '.join(f'{x:.2f}' for x in sg)} mV (bits 0, 1, 2)")
+    nBad = np.isnan(sigma).sum()
+    if nBad:
+        print(f"WARNING: {nBad} pixel/bit combinations have no noise fit (S-curve not falling from >= 80% to <= 20% inside the threshold range). Widen the threshold range.")
+    np.savez(os.path.join(outDir, "noise_matrix_data.npz"), nPix=pixels, v50_mV=v50, mu_mV=mu, sigma_mV=sigma,
+             vth_mV=noiseCurves[pixels[0]][0], hitRate=np.stack([noiseCurves[p][1] for p in pixels if noiseCurves[p][1].shape == noiseCurves[pixels[0]][1].shape], 0))
+    print(f"Data saved to {os.path.join(outDir, 'noise_matrix_data.npz')}")
+
+    for values, name, zlabel, xlab in [(mu, "mu", "Baseline", r"Baseline $\mu$ [mV]"), (sigma, "sigma", "Noise", r"Noise $\sigma$ [mV]")]:
+        # pixel map per bit
+        for iB in range(NBIT):
+            plotPixelMap({p: v for p, v in zip(pixels, values[:,iB])}, f"{zlabel}, Bit {iB} [mV]", os.path.join(outDir, f"{prefix}_noise_{name}_map_Bit{iB}.pdf"))
+        # histogram, bits overlaid
+        fig, ax = plt.subplots(figsize=(6,6))
+        ax.set_xlabel(xlab, fontsize=18, labelpad=10)
+        ax.set_ylabel("Pixels", fontsize=18, labelpad=10)
+        good = values[np.isfinite(values)]
+        if len(good):
+            bins = np.linspace(good.min() - 0.05*np.ptp(good) - 0.1, good.max() + 0.05*np.ptp(good) + 0.1, 40)
+            for iB in range(NBIT):
+                v = values[:,iB][np.isfinite(values[:,iB])]
+                ax.hist(v, bins=bins, histtype='step', color=color[iB], linewidth=2, label=f"Bit {iB}: mean {v.mean():.2f}, std {v.std():.2f} mV" if len(v) else f"Bit {iB}")
+            ax.set_ylim(0, ax.get_ylim()[1] * 2.2) # room for the labels and legend
+            ax.legend(fontsize=11, loc="upper left", bbox_to_anchor=(0.03, 0.68), frameon=False)
+        SetTicks(ax)
+        labels(ax, extra=f"{len(pixels)} pixels, no injected charge")
+        save(fig, os.path.join(outDir, f"{prefix}_noise_{name}_hist.pdf"))
+
+    # bit by bit: difference to bit 0 for the same pixel
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.set_xlabel(r"Bit $-$ Bit 0, same pixel [mV]", fontsize=18, labelpad=10)
+    ax.set_ylabel("Pixels", fontsize=18, labelpad=10)
+    diffs = [(f"$\\mu$, bit {iB}", mu[:,iB] - mu[:,0], "-", color[iB]) for iB in range(1, NBIT)] + [(f"$\\sigma$, bit {iB}", sigma[:,iB] - sigma[:,0], "--", color[iB]) for iB in range(1, NBIT)]
+    good = np.concatenate([d[np.isfinite(d)] for _, d, _, _ in diffs])
+    if len(good):
+        bins = np.linspace(good.min() - 0.1, good.max() + 0.1, 40)
+        for lab, d, ls, c in diffs:
+            d = d[np.isfinite(d)]
+            if len(d):
+                ax.hist(d, bins=bins, histtype='step', color=c, linestyle=ls, linewidth=2, label=f"{lab}: mean {d.mean():.2f}, std {d.std():.2f} mV")
+        ax.set_ylim(0, ax.get_ylim()[1] * 2.2)
+        ax.legend(fontsize=10, loc="upper left", bbox_to_anchor=(0.03, 0.68), frameon=False)
+    SetTicks(ax)
+    labels(ax, extra=f"{len(pixels)} pixels, no injected charge")
+    save(fig, os.path.join(outDir, f"{prefix}_noise_bitDiff_hist.pdf"))
+
+    # matrix average noise S-curve per bit
+    vths = noiseCurves[pixels[0]][0]
+    curves = np.stack([noiseCurves[p][1] for p in pixels if noiseCurves[p][1].shape == noiseCurves[pixels[0]][1].shape], 0) # (pixel, nVth, bit)
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.set_xlabel(vthLabel, fontsize=18, labelpad=10)
+    ax.set_ylabel("Hit Rate, No Injection [%]", fontsize=18, labelpad=10)
+    for iB in range(NBIT):
+        v = vthShow(vths, iB)
+        m = curves[:,:,iB].mean(0)
+        ax.plot(v, m, color=color[iB], marker='o', markersize=3, label=f"Bit {iB} (mean of {len(curves)} pixels)")
+        ax.fill_between(v, np.percentile(curves[:,:,iB], 16, axis=0), np.percentile(curves[:,:,iB], 84, axis=0), color=color[iB], alpha=0.2, linewidth=0)
+    ax.set_ylim(0, 160) # room for the labels
+    ax.legend(fontsize=12, loc="center right")
+    SetTicks(ax)
+    labels(ax, extra="band: 16-84% of pixels")
+    save(fig, os.path.join(outDir, f"{prefix}_noise_matrixSCurve.pdf"))
+
 #-----------------------------------------------------------------------
 # run
 #-----------------------------------------------------------------------
@@ -365,7 +456,7 @@ elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
     pixDirs = [d for d in glob.glob(os.path.join(inPath, "nPix*")) if os.path.isdir(d)]
     pixDirs = sorted(pixDirs, key=lambda x: int(re.search(r'nPix(\d+)$', x).group(1)))
     pixels, vmax, vhalf, width, atEdge = [], [], [], [], []
-    hitRates, vthsAll, delaysAll = {}, None, None
+    hitRates, vthsAll, delaysAll, noiseCurves = {}, None, None, {}
     for d in pixDirs:
         nPix = int(re.search(r'nPix(\d+)$', d).group(1))
         data = loadMap(d)
@@ -382,13 +473,19 @@ elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
         pixels.append(nPix)
         vmax.append([r[0] for r in res]); vhalf.append([r[1] for r in res]); width.append([r[2] for r in res]); atEdge.append([r[3] for r in res])
         hitRates[nPix] = hitRate
+        if args.noise:
+            noiseCurves[nPix] = (vths, hitRate.mean(axis=1)) # hit rate over all delays (nVth, bit)
         if vthsAll is None:
             vthsAll, delaysAll = vths, delays
-        print(f"Pixel {nPix}: Vmax = {', '.join(f'{v:.1f}' for v in vmax[-1])} mV, width at Vmax/2 = {', '.join(f'{w:.1f}' for w in width[-1])} ns (bits 0, 1, 2)")
+        if not args.noise:
+            print(f"Pixel {nPix}: Vmax = {', '.join(f'{v:.1f}' for v in vmax[-1])} mV, width at Vmax/2 = {', '.join(f'{w:.1f}' for w in width[-1])} ns (bits 0, 1, 2)")
 
     if len(pixels) == 0:
         raise SystemExit(f"No data found in {inPath}")
     pixels, vmax, vhalf, width, atEdge = map(np.array, (pixels, vmax, vhalf, width, atEdge))
+    if args.noise:
+        noiseSummary(pixels, noiseCurves)
+        raise SystemExit(0)
     if atEdge.any():
         print(f"WARNING: for {atEdge.sum()} pixel/bit combinations the hit window touches the edge of the delay scan at Vmax/2: the width is a lower limit. Widen the delay range.")
 

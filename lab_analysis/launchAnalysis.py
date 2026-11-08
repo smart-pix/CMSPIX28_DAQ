@@ -16,6 +16,7 @@ if __name__ == "__main__":
     parser.add_argument('--electrons', action="store_true", help="Show the S-curve axis / threshold in electrons instead of mV (injection: Q = V*Cin/q; Vth axes need --cvg)")
     parser.add_argument('--cvg', '--CvG', nargs='?', const="fits", default=None, help="Vth axes (StaticPulse S-curves, PulseDelayScan / ScurveDelaySweep maps) in electrons: alone, with the per bit CvG fits in Analyze.py; or a pixel gain [uV/e-] for all bits")
     parser.add_argument('--vthOffset', type=float, default=None, help="Vth [mV] at 0 e-, used with a --cvg value")
+    parser.add_argument('--noise', action="store_true", help="PulseDelayScan / ScurveDelaySweep matrix scans without injected charge: noise S-curve fit (baseline, sigma) per pixel and bit")
     parser.add_argument('--injOffset', type=float, default=None, help="PulseDelayScan: scope time [ns] from scanLoad rising edge to injection at the chip at delay offset 0; enables the timing overlay on the 2D maps")
     parser.add_argument('--anaRise', type=float, default=None, help="PulseDelayScan: scope time [ns] from scanLoad rising edge to the BxCLK_ANA rising edge (sampling edge)")
     parser.add_argument('--bxclkRise', type=float, default=None, help="PulseDelayScan: scope time [ns] from scanLoad rising edge to the BxCLK rising edge")
@@ -49,6 +50,8 @@ if __name__ == "__main__":
                 for opt in ["injOffset", "anaRise", "bxclkRise"]:
                     if getattr(args, opt) is not None:
                         cmd += [f"--{opt}", str(getattr(args, opt))]
+                if args.noise:
+                    cmd.append("--noise")
                 subprocess.run(cmd + unitOpts, check=True)
             except subprocess.CalledProcessError as e:
                 print(f"Error processing {folder}: {e}")
