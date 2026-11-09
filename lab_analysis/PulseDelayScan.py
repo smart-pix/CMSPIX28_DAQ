@@ -22,6 +22,7 @@ from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 #   ScurveDelaySweep       : <folder>/delay_<ns>/vth_<V>.npy          (threshold swept at every delay, same plots as PulseDelayScanVTH)
 #   ScurveDelaySweepMatrix : <folder>/nPix<n>/delay_<ns>/vth_<V>.npy  (same plots as PulseDelayScanMatrix)
 #   ScurveDelaySweepISource: <folder>/ISource<I>uA/delay_<ns>/vth_<V>.npy  (one pixel, several ISource10uA currents)
+#   ScurveDelaySweepAmp    : <folder>/delay_<ns>/vasic_<V>.npy        (fixed threshold, pulse generator amplitude swept at every delay)
 # The ScurveDelaySweep plots are named ScurveDelaySweep_* instead of PulseDelayScan_*
 # Each npy has shape (nsample, 3) with the 3 bits of the pixel for every sample
 # Outputs in <folder>/plots (or -o):
@@ -39,6 +40,10 @@ from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 #   ScurveDelaySweepISource : the 2D maps and cumulative hit rate per current in ISource<I>uA/
 #                             ScurveDelaySweep_vmax_vs_ISource.pdf, ScurveDelaySweep_widthAtHalfMaxVth_vs_ISource.pdf (per bit)
 #                             pulse_delay_isource_data.npz
+#   ScurveDelaySweepAmp  : ScurveDelaySweepAmp_hitMap_Bit<b>.pdf (2D hit map delay vs V_asic per bit)
+#                          ScurveDelaySweepAmp_vasic50_vs_delay.pdf (lowest V_asic with >= --contour hit rate at every delay, per bit)
+#                          ScurveDelaySweepAmp_window_vs_vasic.pdf (first and last delay with >= --contour hit rate vs V_asic, per bit: time walk)
+#                          pulse_delay_amp_data.npz
 # Timing overlay on the 2D maps (needs --injOffset), from a scope measurement with the run's settings, all relative to the scanLoad rising edge:
 #   --injOffset : injection edge at the chip at delay offset 0      --anaRise : BxCLK_ANA rising edge      --bxclkRise : BxCLK rising edge
 #   an event at time t after the scanLoad rising edge is at delay offset t - injOffset on the maps
@@ -133,19 +138,20 @@ def loadVthSweep(path):
             np.stack([h[:nDelay] for h in hitRate], 0),   # (nVth, nDelay, bit) in %
             np.stack([n[:nDelay] for n in nSample], 0))   # (nVth, nDelay)
 
-def loadScurveDelaySweep(path):
-    # hit rate per threshold, delay and bit for every delay_<ns> sub folder with vth_<V>.npy files in path
+def loadScurveDelaySweep(path, var="vth"):
+    # hit rate per threshold (var = "vth") or amplitude (var = "vasic"), delay and bit for every delay_<ns> sub folder with <var>_<V>.npy files in path
     dlyDirs = [d for d in glob.glob(os.path.join(path, "delay_*")) if os.path.isdir(d)]
     dlyDirs = sorted(dlyDirs, key=lambda x: float(re.search(r'delay_([-\d.]+)$', x).group(1)))
     vths, delays, hitRate, nSample = [], [], [], []
     for d in dlyDirs:
-        files = glob.glob(os.path.join(d, "vth_*.npy"))
+        files = glob.glob(os.path.join(d, f"{var}_*.npy"))
         if len(files) == 0:
-            print(f"No vth_*.npy files in {d}. Skipping.")
+            print(f"No {var}_*.npy files in {d}. Skipping.")
             continue
-        files = sorted(files, key=lambda x: float(re.search(r'vth_([\d.]+)\.npy', x).group(1)))
+        pattern = var + r'_([\d.]+)\.npy'
+        files = sorted(files, key=lambda x: float(re.search(pattern, x).group(1)))
         x = [np.load(f) for f in files] # (nsample, bit) per threshold
-        vths.append(np.array([1000*float(re.search(r'vth_([\d.]+)\.npy', f).group(1)) for f in files])) # mV
+        vths.append(np.array([1000*float(re.search(pattern, f).group(1)) for f in files])) # mV
         delays.append(float(re.search(r'delay_([-\d.]+)$', d).group(1)))
         hitRate.append(100*np.array([i.mean(0) for i in x]))
         nSample.append(np.array([i.shape[0] for i in x]))
@@ -154,7 +160,7 @@ def loadScurveDelaySweep(path):
     # an aborted sweep can leave the last delay with fewer thresholds, keep the common ones
     nVth = min(len(v) for v in vths)
     if any(len(v) != nVth for v in vths):
-        print(f"{path}: not all delays have the same number of thresholds, keeping the first {nVth}")
+        print(f"{path}: not all delays have the same number of {var} points, keeping the first {nVth}")
     return (vths[0][:nVth], np.array(delays),
             np.stack([h[:nVth] for h in hitRate], 1),   # (nVth, nDelay, bit) in %
             np.stack([n[:nVth] for n in nSample], 1))   # (nVth, nDelay)
@@ -203,6 +209,7 @@ def labels(ax, nPix=None, y0=0.9, extra=None):
     ax.text(0.05, y0-0.05, f"ROIC V{int(info['ChipVersion'])}, ID {int(info['ChipID'])}, SuperPixel {int(info['SuperPix'])}", transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
     txt = f"Pixel {int(nPix)}, " if nPix is not None else ""
     txt += f"V$_{{asic}}$ = {info['vasic']*1000:.0f} mV" if "vasic" in info else ""
+    txt = txt.rstrip(", ")
     ax.text(0.05, y0-0.10, txt, transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
     if extra:
         ax.text(0.05, y0-0.15, extra, transform=ax.transAxes, fontsize=12, color="black", ha='left', va='bottom')
@@ -423,9 +430,11 @@ settings = runSettings(inPath)
 # FW mode: the delay is the pulse generator offset plus the firmware injection_delay steps, not the pulse generator delay alone
 if settings.get("delayMode") == "FW" or "_dlyModeFW" in inPath:
     xlabel = "Delay Offset [ns]"
-mapTypes = ("PulseDelayScanVTH", "PulseDelayScanMatrix", "ScurveDelaySweep", "ScurveDelaySweepMatrix", "ScurveDelaySweepISource")
+mapTypes = ("PulseDelayScanVTH", "PulseDelayScanMatrix", "ScurveDelaySweep", "ScurveDelaySweepMatrix", "ScurveDelaySweepISource", "ScurveDelaySweepAmp")
 # ScurveDelaySweep: threshold swept at every delay, same plots with their own names
 prefix = "ScurveDelaySweep" if testType.startswith("ScurveDelaySweep") else "PulseDelayScan"
+if testType == "ScurveDelaySweepAmp":
+    prefix = "ScurveDelaySweepAmp"
 loadMap = loadScurveDelaySweep if testType.startswith("ScurveDelaySweep") else loadVthSweep
 overlay = timingOverlay(settings, args.injOffset, args.anaRise, args.bxclkRise) if testType in mapTypes else None
 if overlay is None and testType in mapTypes:
@@ -561,6 +570,73 @@ elif testType == "ScurveDelaySweepISource":
         SetTicks(ax)
         labels(ax, nPix)
         save(fig, os.path.join(outDir, f"{prefix}_{name}_vs_ISource.pdf"))
+
+elif testType == "ScurveDelaySweepAmp":
+    data = loadScurveDelaySweep(inPath, var="vasic")
+    if data is None:
+        raise SystemExit(f"No data found in {inPath}")
+    amps, delays, hitRate, nSample = data # amps: V_asic [mV], hitRate (nAmp, nDelay, bit) in %
+    nPix = info.get("nPix", 0)
+    vthInfo = f"V$_{{th}}$ = {info['vth']*1000:.0f} mV" if info.get("vth") is not None else None
+    ampLabel = r"V$_{asic}$ [mV]"
+
+    # 2D hit map per bit: x = delay, y = amplitude, z = hit rate
+    for iB in range(NBIT):
+        z = hitRate[:,:,iB]
+        fig, ax = plt.subplots(figsize=(7,6))
+        mesh = ax.pcolormesh(binEdges(delays), binEdges(amps), z, cmap=plt.cm.viridis, vmin=0, vmax=100)
+        if len(amps) > 1 and len(delays) > 1 and z.min() < args.contour < z.max():
+            ax.contour(delays, amps, z, levels=[args.contour], colors='white', linewidths=1.5)
+        cbar = fig.colorbar(mesh, ax=ax, orientation='horizontal', location='top')
+        cbar.ax.xaxis.set_ticks_position('top')
+        cbar.ax.xaxis.set_label_position('top')
+        cbar.set_label(f"Hit Rate, Bit {iB} [%] (white: {args.contour:.0f}%)", fontsize=18, labelpad=10)
+        ax.set_xlabel(xlabel, fontsize=18, labelpad=10)
+        ax.set_ylabel(ampLabel, fontsize=18, labelpad=10)
+        SetTicks(ax)
+        edges = binEdges(delays)
+        drawTiming(ax, overlay, edges[0], edges[-1])
+        ax.set_xlim(edges[0], edges[-1])
+        ax.set_ylim(binEdges(amps)[0], binEdges(amps)[-1])
+        save(fig, os.path.join(outDir, f"{prefix}_hitMap_Bit{iB}.pdf"))
+
+    # lowest amplitude reaching the contour hit rate at every delay (interpolated), per bit
+    amp50 = np.array([[crossings(amps, hitRate[:,iD,iB], args.contour)[0] for iB in range(NBIT)] for iD in range(len(delays))]) # (nDelay, bit)
+    # first and last delay with the contour hit rate at every amplitude, per bit (the window edges: time walk)
+    window = np.array([[crossings(delays, hitRate[iA,:,iB], args.contour) for iB in range(NBIT)] for iA in range(len(amps))]) # (nAmp, bit, rise/fall)
+
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.set_xlabel(xlabel, fontsize=18, labelpad=10)
+    ax.set_ylabel(f"V$_{{asic}}$ at {args.contour:.0f}% Hit Rate [mV]", fontsize=18, labelpad=10)
+    for iB in range(NBIT):
+        ax.plot(delays, amp50[:,iB], label=f'Bit {iB}', color=color[iB], linestyle='-', marker='o', markersize=3)
+    good = amp50[np.isfinite(amp50)]
+    ax.set_xlim(delays.min(), delays.max())
+    if len(good):
+        ax.set_ylim(0, good.max() * 1.6) # room for the labels
+    legend = ax.legend(fontsize=15, loc="upper right")
+    for text in legend.get_texts():
+        text.set_fontweight('bold')
+    SetTicks(ax)
+    labels(ax, nPix, extra=vthInfo)
+    save(fig, os.path.join(outDir, f"{prefix}_vasic50_vs_delay.pdf"))
+
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.set_xlabel(ampLabel, fontsize=18, labelpad=10)
+    ax.set_ylabel(f"Hit Window Edge at {args.contour:.0f}% [ns]", fontsize=18, labelpad=10)
+    for iB in range(NBIT):
+        ax.plot(amps, window[:,iB,0], color=color[iB], linestyle='-', marker='o', markersize=3, label=f'Bit {iB} first')
+        ax.plot(amps, window[:,iB,1], color=color[iB], linestyle='--', marker='s', markersize=3, label=f'Bit {iB} last')
+    ax.set_xlim(amps.min(), amps.max())
+    ax.set_ylim(delays.min(), delays.max() + 1.2*(delays.max() - delays.min())) # room for the labels
+    ax.legend(fontsize=10, loc="upper right", bbox_to_anchor=(0.98, 0.72), ncol=2, frameon=False)
+    SetTicks(ax)
+    labels(ax, nPix, extra=vthInfo)
+    save(fig, os.path.join(outDir, f"{prefix}_window_vs_vasic.pdf"))
+
+    np.savez(os.path.join(outDir, "pulse_delay_amp_data.npz"), delay_ns=delays, vasic_mV=amps, hitRate=hitRate, nSample=nSample,
+             vasic50_mV=amp50, windowFirst_ns=window[:,:,0], windowLast_ns=window[:,:,1], vth_mV=1000*info["vth"] if info.get("vth") is not None else np.nan, contour=args.contour)
+    print(f"Data saved to {os.path.join(outDir, 'pulse_delay_amp_data.npz')}")
 
 else:
     raise SystemExit(f"Unknown test type {testType} for {inPath}")
