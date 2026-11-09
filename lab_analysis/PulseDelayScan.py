@@ -409,11 +409,10 @@ def noiseSummary(pixels, noiseCurves):
         v = vthShow(vths, iB)
         m = curves[:,:,iB].mean(0)
         ax.plot(v, m, color=color[iB], marker='o', markersize=3, label=f"Bit {iB} (mean of {len(curves)} pixels)")
-        ax.fill_between(v, np.percentile(curves[:,:,iB], 16, axis=0), np.percentile(curves[:,:,iB], 84, axis=0), color=color[iB], alpha=0.2, linewidth=0)
     ax.set_ylim(0, 160) # room for the labels
     ax.legend(fontsize=12, loc="center right")
     SetTicks(ax)
-    labels(ax, extra="band: 16-84% of pixels")
+    labels(ax)
     save(fig, os.path.join(outDir, f"{prefix}_noise_matrixSCurve.pdf"))
 
 #-----------------------------------------------------------------------
