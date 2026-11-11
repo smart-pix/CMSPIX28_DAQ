@@ -58,6 +58,13 @@ from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 # Width at half maximum threshold (matrix only), per pixel and bit:
 #   maximum threshold Vmax = highest threshold at which the hit rate reaches 50% at some delay
 #   width = delay range [ns] with hit rate >= 50% at Vmax/2 (interpolated between the scanned thresholds)
+# Pulse 90-10% rise and fall times (matrix only), per pixel and bit:
+#   pulse profile V50(delay) = highest threshold with hit rate >= --contour at that delay (interpolated), baseline = its minimum over the scan
+#   A larger delay moves the injection closer to the sampling edge, so the sampler sees an earlier part of the pulse:
+#   the pulse rising edge is on the large delay side of the profile peak, the falling edge on the small delay side
+#   rise time = delay distance between the 90% and 10% (of peak - baseline) points on the large delay side, fall time the same on the small delay side
+#   NaN when the profile does not get back to 10% inside the scan
+#   {prefix}_riseFallTime_hist.pdf (all bits), {prefix}_{riseTime,fallTime}_map_Bit<b>.pdf, saved in pulse_delay_matrix_data.npz
 
 # Argument parser
 parser = argparse.ArgumentParser(description='Analyze pulse generator delay scans.')
@@ -201,6 +208,36 @@ def widthAtHalfMaxVth(vths, delays, h, level):
     width = np.interp(vhalf, vths[ok], widths[ok])
     iNear = np.argsort(np.abs(vths - vhalf))[:2]
     return vmax, vhalf, width, bool(edge[iNear].any())
+
+def pulseProfile(vths, h, level):
+    # h: (nVth, nDelay) hit rate in % for one bit; highest threshold with hit rate >= level at every delay [mV]
+    return np.array([crossings(vths, h[:,i], level)[1] for i in range(h.shape[1])])
+
+def edgeCrossing(x, y, level, iStart, step):
+    # walk from iStart in direction step until y drops to level or below, interpolate; NaN if it never does
+    i = iStart
+    while 0 <= i + step < len(y):
+        if y[i+step] <= level:
+            return np.interp(level, [y[i+step], y[i]], [x[i+step], x[i]])
+        i += step
+    return np.nan
+
+def riseFallTime(vths, delays, h, level, lo=0.1, hi=0.9):
+    # 90-10% rise and fall time [ns] of the pulse profile V50(delay), see the header
+    prof = pulseProfile(vths, h, level)
+    ok = np.isfinite(prof)
+    if ok.sum() < 3:
+        return np.nan, np.nan
+    x, y = delays[ok], prof[ok]
+    iPk = np.argmax(y)
+    base = y.min()
+    amp = y[iPk] - base
+    if amp <= 0:
+        return np.nan, np.nan
+    vLo, vHi = base + lo*amp, base + hi*amp
+    rise = edgeCrossing(x, y, vLo, iPk, +1) - edgeCrossing(x, y, vHi, iPk, +1) # large delay side
+    fall = edgeCrossing(x, y, vHi, iPk, -1) - edgeCrossing(x, y, vLo, iPk, -1) # small delay side
+    return rise, fall
 
 def binEdges(c):
     # bin edges centered on the scan points
@@ -545,7 +582,7 @@ elif testType in ("PulseDelayScanVTH", "ScurveDelaySweep"):
 elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
     pixDirs = [d for d in glob.glob(os.path.join(inPath, "nPix*")) if os.path.isdir(d)]
     pixDirs = sorted(pixDirs, key=lambda x: int(re.search(r'nPix(\d+)$', x).group(1)))
-    pixels, vmax, vhalf, width, atEdge = [], [], [], [], []
+    pixels, vmax, vhalf, width, atEdge, riseT, fallT = [], [], [], [], [], [], []
     hitRates, vthsAll, delaysAll, noiseCurves = {}, None, None, {}
     for d in pixDirs:
         nPix = int(re.search(r'nPix(\d+)$', d).group(1))
@@ -562,17 +599,20 @@ elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
         res = [widthAtHalfMaxVth(vths, delays, hitRate[:,:,iB], args.contour) for iB in range(NBIT)]
         pixels.append(nPix)
         vmax.append([r[0] for r in res]); vhalf.append([r[1] for r in res]); width.append([r[2] for r in res]); atEdge.append([r[3] for r in res])
+        rf = [riseFallTime(vths, delays, hitRate[:,:,iB], args.contour) for iB in range(NBIT)]
+        riseT.append([r[0] for r in rf]); fallT.append([r[1] for r in rf])
         hitRates[nPix] = hitRate
         if args.noise:
             noiseCurves[nPix] = (vths, hitRate.mean(axis=1)) # hit rate over all delays (nVth, bit)
         if vthsAll is None:
             vthsAll, delaysAll = vths, delays
         if not args.noise:
-            print(f"Pixel {nPix}: Vmax = {', '.join(f'{v:.1f}' for v in vmax[-1])} mV, width at Vmax/2 = {', '.join(f'{w:.1f}' for w in width[-1])} ns (bits 0, 1, 2)")
+            print(f"Pixel {nPix}: Vmax = {', '.join(f'{v:.1f}' for v in vmax[-1])} mV, width at Vmax/2 = {', '.join(f'{w:.1f}' for w in width[-1])} ns, "
+                  f"rise = {', '.join(f'{v:.1f}' for v in riseT[-1])} ns, fall = {', '.join(f'{v:.1f}' for v in fallT[-1])} ns (bits 0, 1, 2)")
 
     if len(pixels) == 0:
         raise SystemExit(f"No data found in {inPath}")
-    pixels, vmax, vhalf, width, atEdge = map(np.array, (pixels, vmax, vhalf, width, atEdge))
+    pixels, vmax, vhalf, width, atEdge, riseT, fallT = map(np.array, (pixels, vmax, vhalf, width, atEdge, riseT, fallT))
     if args.noise:
         noiseSummary(pixels, noiseCurves)
         raise SystemExit(0)
@@ -583,6 +623,7 @@ elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
     same = [p for p in pixels if hitRates[p].shape == hitRates[pixels[0]].shape]
     np.savez(os.path.join(outDir, "pulse_delay_matrix_data.npz"),
              nPix=pixels, vmax_mV=vmax, vhalf_mV=vhalf, widthAtHalfMaxVth_ns=width, widthAtScanEdge=atEdge,
+             riseTime_ns=riseT, fallTime_ns=fallT,
              vth_mV=vthsAll, delay_ns=delaysAll, hitRate_nPix=np.array(same), hitRate=np.stack([hitRates[p] for p in same], 0), contour=args.contour)
     print(f"Data saved to {os.path.join(outDir, 'pulse_delay_matrix_data.npz')}")
 
@@ -603,6 +644,31 @@ elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
     SetTicks(ax)
     labels(ax, extra=f"{len(pixels)} pixels")
     save(fig, os.path.join(outDir, f"{prefix}_widthAtHalfMaxVth_hist.pdf"))
+
+    # summary: pulse 90-10% rise and fall times, map per bit and histogram (rise solid, fall dashed)
+    for values, name, lab in [(riseT, "riseTime", "Rise"), (fallT, "fallTime", "Fall")]:
+        nBad = np.isnan(values).sum()
+        if nBad:
+            print(f"WARNING: no {lab.lower()} time for {nBad} pixel/bit combinations (pulse profile does not reach 10% inside the scan or no pulse)")
+        for iB in range(NBIT):
+            plotPixelMap({p: v for p, v in zip(pixels, values[:,iB])}, f"Pulse 90-10% {lab} Time, Bit {iB} [ns]", os.path.join(outDir, f"{prefix}_{name}_map_Bit{iB}.pdf"))
+    fig, ax = plt.subplots(figsize=(6,6))
+    ax.set_xlabel("Pulse 90-10% Time [ns]", fontsize=18, labelpad=10)
+    ax.set_ylabel("Pixels", fontsize=18, labelpad=10)
+    good = np.concatenate([riseT[np.isfinite(riseT)], fallT[np.isfinite(fallT)]])
+    if len(good):
+        step = max(np.min(np.diff(delaysAll)) if len(delaysAll) > 1 else 1, 0.5)/2 # half the delay step
+        bins = np.arange(np.floor(good.min()) - step, np.ceil(good.max()) + 2*step, step)
+        for values, lab, ls in [(riseT, "Rise", "-"), (fallT, "Fall", "--")]:
+            for iB in range(NBIT):
+                v = values[:,iB][np.isfinite(values[:,iB])]
+                ax.hist(v, bins=bins, histtype='step', color=color[iB], linewidth=2, linestyle=ls,
+                        label=f"{lab}, Bit {iB}: mean {v.mean():.1f} ns, std {v.std():.1f} ns" if len(v) else f"{lab}, Bit {iB}")
+        ax.set_ylim(0, ax.get_ylim()[1] * 2.6) # room for the labels and legend
+        ax.legend(fontsize=10, loc="upper left", bbox_to_anchor=(0.03, 0.68), frameon=False)
+    SetTicks(ax)
+    labels(ax, extra=f"{len(pixels)} pixels")
+    save(fig, os.path.join(outDir, f"{prefix}_riseFallTime_hist.pdf"))
 
 elif testType == "ScurveDelaySweepISource":
     curDirs = [d for d in glob.glob(os.path.join(inPath, "ISource*uA")) if os.path.isdir(d)]
