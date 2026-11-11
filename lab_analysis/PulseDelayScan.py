@@ -64,7 +64,7 @@ from Analyze import inspectPath, NBIT, addUnitArgs, xAxisUnit, VtomV
 #   the pulse rising edge is on the large delay side of the profile peak, the falling edge on the small delay side
 #   rise time = delay distance between the 90% and 10% (of peak - baseline) points on the large delay side, fall time the same on the small delay side
 #   NaN when the profile does not get back to 10% inside the scan
-#   {prefix}_riseFallTime_hist.pdf (all bits), {prefix}_{riseTime,fallTime}_map_Bit<b>.pdf, saved in pulse_delay_matrix_data.npz
+#   {prefix}_{riseTime,fallTime}_hist.pdf (all bits), {prefix}_{riseTime,fallTime}_map_Bit<b>.pdf, saved in pulse_delay_matrix_data.npz
 
 # Argument parser
 parser = argparse.ArgumentParser(description='Analyze pulse generator delay scans.')
@@ -645,30 +645,29 @@ elif testType in ("PulseDelayScanMatrix", "ScurveDelaySweepMatrix"):
     labels(ax, extra=f"{len(pixels)} pixels")
     save(fig, os.path.join(outDir, f"{prefix}_widthAtHalfMaxVth_hist.pdf"))
 
-    # summary: pulse 90-10% rise and fall times, map per bit and histogram (rise solid, fall dashed)
+    # summary: pulse 90-10% rise and fall times, map per bit and histogram (all bits overlaid), separate plots for rise and fall
     for values, name, lab in [(riseT, "riseTime", "Rise"), (fallT, "fallTime", "Fall")]:
         nBad = np.isnan(values).sum()
         if nBad:
             print(f"WARNING: no {lab.lower()} time for {nBad} pixel/bit combinations (pulse profile does not reach 10% inside the scan or no pulse)")
         for iB in range(NBIT):
             plotPixelMap({p: v for p, v in zip(pixels, values[:,iB])}, f"Pulse 90-10% {lab} Time, Bit {iB} [ns]", os.path.join(outDir, f"{prefix}_{name}_map_Bit{iB}.pdf"))
-    fig, ax = plt.subplots(figsize=(6,6))
-    ax.set_xlabel("Pulse 90-10% Time [ns]", fontsize=18, labelpad=10)
-    ax.set_ylabel("Pixels", fontsize=18, labelpad=10)
-    good = np.concatenate([riseT[np.isfinite(riseT)], fallT[np.isfinite(fallT)]])
-    if len(good):
-        step = max(np.min(np.diff(delaysAll)) if len(delaysAll) > 1 else 1, 0.5)/2 # half the delay step
-        bins = np.arange(np.floor(good.min()) - step, np.ceil(good.max()) + 2*step, step)
-        for values, lab, ls in [(riseT, "Rise", "-"), (fallT, "Fall", "--")]:
+        fig, ax = plt.subplots(figsize=(6,6))
+        ax.set_xlabel(f"Pulse 90-10% {lab} Time [ns]", fontsize=18, labelpad=10)
+        ax.set_ylabel("Pixels", fontsize=18, labelpad=10)
+        good = values[np.isfinite(values)]
+        if len(good):
+            step = max(np.min(np.diff(delaysAll)) if len(delaysAll) > 1 else 1, 0.5)/2 # half the delay step
+            bins = np.arange(np.floor(good.min()) - step, np.ceil(good.max()) + 2*step, step)
             for iB in range(NBIT):
                 v = values[:,iB][np.isfinite(values[:,iB])]
-                ax.hist(v, bins=bins, histtype='step', color=color[iB], linewidth=2, linestyle=ls,
-                        label=f"{lab}, Bit {iB}: mean {v.mean():.1f} ns, std {v.std():.1f} ns" if len(v) else f"{lab}, Bit {iB}")
-        ax.set_ylim(0, ax.get_ylim()[1] * 2.6) # room for the labels and legend
-        ax.legend(fontsize=10, loc="upper left", bbox_to_anchor=(0.03, 0.68), frameon=False)
-    SetTicks(ax)
-    labels(ax, extra=f"{len(pixels)} pixels")
-    save(fig, os.path.join(outDir, f"{prefix}_riseFallTime_hist.pdf"))
+                ax.hist(v, bins=bins, histtype='step', color=color[iB], linewidth=2,
+                        label=f"Bit {iB}: mean {v.mean():.1f} ns, std {v.std():.1f} ns" if len(v) else f"Bit {iB}")
+            ax.set_ylim(0, ax.get_ylim()[1] * 2.2) # room for the labels and legend
+            ax.legend(fontsize=11, loc="upper left", bbox_to_anchor=(0.03, 0.68), frameon=False)
+        SetTicks(ax)
+        labels(ax, extra=f"{len(pixels)} pixels")
+        save(fig, os.path.join(outDir, f"{prefix}_{name}_hist.pdf"))
 
 elif testType == "ScurveDelaySweepISource":
     curDirs = [d for d in glob.glob(os.path.join(inPath, "ISource*uA")) if os.path.isdir(d)]
